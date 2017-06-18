@@ -1,0 +1,20 @@
+[package]
+name = "auth_mgmt"
+version = "0.1.0"
+authors = ["Chen Weiguang <chen.weiguang@gmail.com>"]
+
+[dependencies]
+derive-new = "=0.4.0"
+error-chain = "=0.10.0"
+file = "*"
+filebuffer = "=0.2.0"
+log = "=0.3.8"
+log4rs = "=0.7.0"
+ring = "=0.11.0"
+rmp = "=0.8.6"
+rmp-serde = "=0.13.3"
+serde = "=1.0.8"
+serde_derive = "=1.0.8"
+simple_logger = "=0.4.0"
+structopt = "=0.0.5"
+structopt-derive = "=0.0.5"
