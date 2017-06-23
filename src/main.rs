@@ -1,5 +1,7 @@
 #![feature(rustc_private)]
 
+mod auth;
+
 extern crate base64;
 
 #[macro_use]
@@ -28,6 +30,7 @@ extern crate structopt;
 #[macro_use]
 extern crate structopt_derive;
 
+use auth::{AuthMgmt, SaltEncryptedPayloadGroup};
 use filebuffer::FileBuffer;
 use openssl::hash::MessageDigest;
 use openssl::pkcs5;
@@ -36,9 +39,6 @@ use ring::{digest, pbkdf2};
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 use serialize::hex::{FromHex, ToHex};
-use std::collections::HashMap;
-use std::ffi::CString;
-use std::fs;
 use std::process;
 use std::str;
 use structopt::StructOpt;
@@ -62,18 +62,6 @@ struct MainConfig {
     auth_bin_path: String,
 }
 
-#[derive(new, Debug, PartialEq, Deserialize, Serialize)]
-struct SaltEncryptedPayloadGroup {
-    salt: CString,
-    encrypted_hashhex_payload_b64: CString,
-}
-
-#[derive(new, Debug, PartialEq, Deserialize, Serialize)]
-struct AuthExchanger {
-    exchanger: HashMap<String, SaltEncryptedPayloadGroup>,
-    cipher_algo_name: String,
-}
-
 fn run() -> Result<()> {
     let config = MainConfig::from_args();
 
@@ -90,8 +78,8 @@ fn run() -> Result<()> {
 
     let mut de = Deserializer::new(&fbuf[..]);
 
-    let auth_exchanger: AuthExchanger = Deserialize::deserialize(&mut de)
-        .chain_err(|| format!("Unable to deserialize content from '{}' into AuthExchanger", config.auth_bin_path))?;
+    let auth_exchanger: AuthMgmt = Deserialize::deserialize(&mut de)
+        .chain_err(|| format!("Unable to deserialize content from '{}' into AuthMgmt", config.auth_bin_path))?;
 
     Ok(())
 }
@@ -118,6 +106,9 @@ fn main() {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::collections::HashMap;
+    use std::ffi::CString;
+    use std::fs;
 
     #[test]
     fn test_new_exchanger() {
@@ -136,7 +127,7 @@ mod test {
                 hm
             };
 
-            let auth_exchanger = AuthExchanger::new(
+            let auth_exchanger = AuthMgmt::new(
                 hm, "aes256".to_owned());
 
             auth_exchanger.serialize(&mut Serializer::new(&mut buf))
@@ -174,10 +165,10 @@ mod test {
 
         let mut de = Deserializer::new(&buf[..]);
 
-        let auth_exchanger: AuthExchanger = Deserialize::deserialize(&mut de)
-            .expect("Unable to deserialize buffer content into AuthExchanger");
+        let auth_exchanger: AuthMgmt = Deserialize::deserialize(&mut de)
+            .expect("Unable to deserialize buffer content into AuthMgmt");
 
-        let salt_with_encrypted_hashhex_payload_b64 = &auth_exchanger.exchanger["hello"];
+        let salt_with_encrypted_hashhex_payload_b64 = &auth_exchanger.mapping["hello"];
         let salt = salt_with_encrypted_hashhex_payload_b64.salt.as_bytes();
         let encrypted_hashhex_payload_b64 = salt_with_encrypted_hashhex_payload_b64.encrypted_hashhex_payload_b64.as_bytes();
 
@@ -196,16 +187,6 @@ mod test {
             &mut hashed_secret);
 
         let hashed_secret_hex = hashed_secret.to_hex().to_lowercase();
-
-        // payload is in base64, so convert it back into binary first before decryption
-        let encrypted_hashhex_payload = {
-            let mut buf = Vec::new();
-
-            base64::decode_config_buf(encrypted_hashhex_payload_b64, base64::MIME, &mut buf)
-                .expect("base64 decoding failed");
-
-            buf
-        };
 
         // aes-256 usually defaults to AES-256-CBC
         // need to use the Poco algorithm to create the salt for AES decryption and key
@@ -243,6 +224,16 @@ mod test {
         let iv_opt = match &key_iv.iv {
             &Some(ref iv) => Some(iv.as_slice()),
             &None => None,
+        };
+
+        // payload is in base64, so convert it back into binary first before decryption
+        let encrypted_hashhex_payload = {
+            let mut buf = Vec::new();
+
+            base64::decode_config_buf(encrypted_hashhex_payload_b64, base64::MIME, &mut buf)
+                .expect("base64 decoding failed");
+
+            buf
         };
 
         let hashhex_payload_res = symm::decrypt(

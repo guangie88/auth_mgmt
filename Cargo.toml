@@ -20,3 +20,7 @@ serde_derive = "=1.0.8"
 simple_logger = "=0.4.0"
 structopt = "=0.0.5"
 structopt-derive = "=0.0.5"
+
+[lib]
+name = "auth"
+path = "src/lib.rs"
