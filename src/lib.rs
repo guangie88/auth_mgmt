@@ -4,6 +4,7 @@ extern crate base64;
 
 #[macro_use]
 extern crate derive_new;
+extern crate file;
 extern crate openssl;
 extern crate ring;
 extern crate rmp_serde;
