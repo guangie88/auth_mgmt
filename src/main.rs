@@ -1,46 +1,27 @@
-#![feature(rustc_private)]
+// #![feature(rustc_private)]
 
-mod auth;
+// mod auth;
 
-extern crate base64;
+// extern crate base64;
 
-#[macro_use]
-extern crate derive_new;
+// #[macro_use]
+// extern crate derive_new;
 
 #[macro_use]
 extern crate error_chain;
-extern crate file;
-extern crate filebuffer;
+// extern crate file;
+// extern crate filebuffer;
 
 #[macro_use]
 extern crate log;
 extern crate log4rs;
-extern crate openssl;
-extern crate ring;
-extern crate rmp;
-extern crate rmp_serde;
-extern crate serde;
-
-#[macro_use]
-extern crate serde_derive;
-extern crate serialize;
 extern crate simple_logger;
 extern crate structopt;
 
 #[macro_use]
 extern crate structopt_derive;
 
-use auth::{AuthMgmt, SaltEncryptedPayloadGroup};
-use filebuffer::FileBuffer;
-use openssl::hash::MessageDigest;
-use openssl::pkcs5;
-use openssl::symm::{self, Cipher};
-use ring::{digest, pbkdf2};
-use rmp_serde::{Deserializer, Serializer};
-use serde::{Deserialize, Serialize};
-use serialize::hex::{FromHex, ToHex};
 use std::process;
-use std::str;
 use structopt::StructOpt;
 
 mod errors {
@@ -73,13 +54,13 @@ fn run() -> Result<()> {
             .chain_err(|| "Unable to initialize default logger")?;
     }
 
-    let fbuf = FileBuffer::open(&config.auth_bin_path)
-        .chain_err(|| format!("Unable to open '{}'", config.auth_bin_path))?;
+//     let fbuf = FileBuffer::open(&config.auth_bin_path)
+//         .chain_err(|| format!("Unable to open '{}'", config.auth_bin_path))?;
 
-    let mut de = Deserializer::new(&fbuf[..]);
+//     let mut de = Deserializer::new(&fbuf[..]);
 
-    let auth_mgmt: AuthMgmt = Deserialize::deserialize(&mut de)
-        .chain_err(|| format!("Unable to deserialize content from '{}' into AuthMgmt", config.auth_bin_path))?;
+//     let auth_mgmt: AuthMgmt = Deserialize::deserialize(&mut de)
+//         .chain_err(|| format!("Unable to deserialize content from '{}' into AuthMgmt", config.auth_bin_path))?;
 
     Ok(())
 }

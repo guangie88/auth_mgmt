@@ -88,12 +88,12 @@ const CIPHER_ALGO_NAME: &'static str = "aes256";
 // multiply by 2 because hex has twice the length from binary u8 representation
 const SHA1_DIGEST_HEX_COUNT: usize = digest::SHA1_OUTPUT_LEN * 2;
 
-fn create_random_salt(salt_len: usize) -> Vec<u8> {
+fn create_random_salt(salt_len: usize) -> Result<Vec<u8>> {
     let mut buf = vec![0u8; salt_len];
 
     let r = SystemRandom::new();
-    r.fill(&mut buf);
-    buf
+    r.fill(&mut buf)?;
+    Ok(buf)
 }
 
 fn get_aes_algo() -> Cipher {
@@ -170,7 +170,7 @@ impl AuthMgmt {
         M: Into<HashMap<String, SaltEncryptedPayloadGroup>> {
 
         AuthMgmt {
-            mapping: HashMap::new(),
+            mapping: mapping.into(),
             cipher_algo_name: CIPHER_ALGO_NAME.to_owned(),
         }
     }
@@ -187,7 +187,7 @@ impl AuthMgmt {
         }
 
         let secret = secret.into();
-        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&key, &secret, value)?;
+        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&secret, value)?;
 
         // ignore the possible Option
         // because the value has been checked before insertion
@@ -208,7 +208,7 @@ impl AuthMgmt {
 
         let secret = secret.into();
         let payload = payload.into();
-        let salt_with_encrypted_hashhex_payload_raw_b64 = self.prep_salt_with_encrypted_hashhex_payload_raw_b64(&key, &secret, payload)?;
+        let salt_with_encrypted_hashhex_payload_raw_b64 = self.prep_salt_with_encrypted_hashhex_payload_raw_b64(&secret, payload)?;
 
         // ignore the possible Option
         // because the value has been checked before insertion
@@ -229,7 +229,7 @@ impl AuthMgmt {
 
     pub fn update<V: Serialize>(&mut self, key: &str, secret: &str, value: &V) -> Result<()> {
         self.verify(key, secret)?;
-        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&key, &secret, value)?;
+        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&secret, value)?;
 
         let mapping_value = self.mapping.get_mut(key).ok_or_else(|| AuthErr::KeyMissing)?;
         *mapping_value = salt_with_encrypted_hashhex_payload_b64;
@@ -290,21 +290,21 @@ impl AuthMgmt {
         self.mapping.keys()
     }
 
-    fn prep_salt_with_encrypted_hashhex_payload_b64<V>(&self, key: &str, secret: &str, value: &V) -> Result<SaltEncryptedPayloadGroup> where
+    fn prep_salt_with_encrypted_hashhex_payload_b64<V>(&self, secret: &str, value: &V) -> Result<SaltEncryptedPayloadGroup> where
         V: Serialize {
         
         let mut payload = Vec::new();
         value.serialize(&mut Serializer::new(&mut payload))?;
         let payload = payload;
 
-        self.prep_salt_with_encrypted_hashhex_payload_raw_b64(key, secret, payload)
+        self.prep_salt_with_encrypted_hashhex_payload_raw_b64(secret, payload)
     }
 
-    fn prep_salt_with_encrypted_hashhex_payload_raw_b64<P>(&self, key: &str, secret: &str, payload: P) -> Result<SaltEncryptedPayloadGroup> where
+    fn prep_salt_with_encrypted_hashhex_payload_raw_b64<P>(&self, secret: &str, payload: P) -> Result<SaltEncryptedPayloadGroup> where
         P: Into<Vec<u8>> {
 
         let payload = payload.into();
-        let salt = create_random_salt(SALT_LEN);
+        let salt = create_random_salt(SALT_LEN)?;
         let key_iv = derive_key_iv_pair(salt.as_slice(), secret.as_bytes())?;
 
         // binary hash of payload
@@ -419,7 +419,7 @@ mod test {
 
         // add
         let mut auth_mgmt = AuthMgmt::new();
-        auth_mgmt.add("hello", "world", &orig_payload);
+        auth_mgmt.add("hello", "world", &orig_payload).unwrap();
 
         // exchange
         let value: String = auth_mgmt.exchange("hello", "world").unwrap();
