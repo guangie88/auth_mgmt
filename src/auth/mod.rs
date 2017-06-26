@@ -192,10 +192,7 @@ impl AuthMgmt {
         V: Serialize {
 
         let key = key.into();
-
-        if self.mapping.contains_key(&key) {
-            Err(AuthErr::KeyExists)?;
-        }
+        self.check_key_exists(&key)?;
 
         let secret = secret.into();
         let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&secret, value)?;
@@ -212,10 +209,7 @@ impl AuthMgmt {
         P: Into<Vec<u8>> {
 
         let key = key.into();
-
-        if self.mapping.contains_key(&key) {
-            Err(AuthErr::KeyExists)?;
-        }
+        self.check_key_exists(&key)?;
 
         let secret = secret.into();
         let payload = payload.into();
@@ -241,10 +235,13 @@ impl AuthMgmt {
     pub fn update<V: Serialize>(&mut self, key: &str, secret: &str, value: &V) -> Result<()> {
         self.verify(key, secret)?;
         let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&secret, value)?;
+        self.get_and_update(key, salt_with_encrypted_hashhex_payload_b64)
+    }
 
-        let mapping_value = self.mapping.get_mut(key).ok_or_else(|| AuthErr::KeyMissing)?;
-        *mapping_value = salt_with_encrypted_hashhex_payload_b64;
-        Ok(())
+    pub fn update_raw<P: Into<Vec<u8>>>(&mut self, key: &str, secret: &str, payload: P) -> Result<()> {
+        self.verify(key, secret)?;
+        let salt_with_encrypted_hashhex_payload_raw_b64 = self.prep_salt_with_encrypted_hashhex_payload_raw_b64(&secret, payload)?;
+        self.get_and_update(key, salt_with_encrypted_hashhex_payload_raw_b64)
     }
 
     pub fn exchange<V: DeserializeOwned>(&self, key: &str, secret: &str) -> Result<V> where {
@@ -297,6 +294,20 @@ impl AuthMgmt {
 
     pub fn get_keys(&self) -> Keys<String, SaltEncryptedPayloadGroup> {
         self.mapping.keys()
+    }
+
+    fn check_key_exists(&self, key: &str) -> Result<()> {
+        if self.mapping.contains_key(key) {
+            Err(AuthErr::KeyExists)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn get_and_update(&mut self, key: &str, mapping_value_to_assign: SaltEncryptedPayloadGroup) -> Result<()> {
+        let mapping_value = self.mapping.get_mut(key).ok_or_else(|| AuthErr::KeyMissing)?;
+        *mapping_value = mapping_value_to_assign;
+        Ok(())
     }
 
     fn prep_salt_with_encrypted_hashhex_payload_b64<V>(&self, secret: &str, value: &V) -> Result<SaltEncryptedPayloadGroup> where

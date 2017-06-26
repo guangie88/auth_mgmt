@@ -1,16 +1,5 @@
-// #![feature(rustc_private)]
-
-// mod auth;
-
-// extern crate base64;
-
-// #[macro_use]
-// extern crate derive_new;
-
 #[macro_use]
 extern crate error_chain;
-// extern crate file;
-// extern crate filebuffer;
 
 #[macro_use]
 extern crate log;
