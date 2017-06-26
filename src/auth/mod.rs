@@ -175,17 +175,135 @@ impl AuthMgmt {
         }
     }
 
-    fn prep_salt_with_encrypted_hashhex_payload_b64<V>(&self, key: &str, secret: &str, value: &V) -> Result<SaltEncryptedPayloadGroup> where
+    pub fn add<K, S, V>(&mut self, key: K, secret: S, value: &V) -> Result<()> where 
+        K: Into<String>,
+        S: Into<String>,
         V: Serialize {
 
-        if self.mapping.contains_key(key) {
+        let key = key.into();
+
+        if self.mapping.contains_key(&key) {
             Err(AuthErr::KeyExists)?;
         }
+
+        let secret = secret.into();
+        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&key, &secret, value)?;
+
+        // ignore the possible Option
+        // because the value has been checked before insertion
+        let _ = self.mapping.insert(key, salt_with_encrypted_hashhex_payload_b64);
+        Ok(())
+    }
+
+    pub fn add_raw<K, S, P>(&mut self, key: K, secret: S, payload: P) -> Result<()> where
+        K: Into<String>,
+        S: Into<String>,
+        P: Into<Vec<u8>> {
+
+        let key = key.into();
+
+        if self.mapping.contains_key(&key) {
+            Err(AuthErr::KeyExists)?;
+        }
+
+        let secret = secret.into();
+        let payload = payload.into();
+        let salt_with_encrypted_hashhex_payload_raw_b64 = self.prep_salt_with_encrypted_hashhex_payload_raw_b64(&key, &secret, payload)?;
+
+        // ignore the possible Option
+        // because the value has been checked before insertion
+        let _ = self.mapping.insert(key, salt_with_encrypted_hashhex_payload_raw_b64);
+        Ok(())
+    }
+
+    pub fn delete(&mut self, key: &str, secret: &str) -> Result<()> {
+        self.verify(key, secret)?;
+        self.force_delete(key)
+    }
+
+    pub fn force_delete(&mut self, key: &str) -> Result<()> {
+        self.mapping.remove(key)
+            .map(|_| ())
+            .ok_or_else(|| AuthErr::KeyMissing)
+    }
+
+    pub fn update<V: Serialize>(&mut self, key: &str, secret: &str, value: &V) -> Result<()> {
+        self.verify(key, secret)?;
+        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&key, &secret, value)?;
+
+        let mapping_value = self.mapping.get_mut(key).ok_or_else(|| AuthErr::KeyMissing)?;
+        *mapping_value = salt_with_encrypted_hashhex_payload_b64;
+        Ok(())
+    }
+
+    pub fn exchange<'a, D: Deserialize<'a>>(&self, key: &str, secret: &str) -> Result<D> where {
+        let payload = self.verify(key, secret)?;
+
+        let mut de = Deserializer::new(payload.as_slice());
+        let value: D = Deserialize::deserialize(&mut de)?;
+        Ok(value)
+    }
+
+    // this is equivalent to exchange_raw (like add to add_raw)
+    pub fn verify(&self, key: &str, secret: &str) -> Result<Vec<u8>> {
+        let salt_with_encrypted_hashhex_payload_b64 = self.mapping.get(key)
+            .ok_or_else(|| AuthErr::KeyMissing)?;
+
+        let salt = salt_with_encrypted_hashhex_payload_b64.salt.as_bytes();
+        let encrypted_hashhex_payload_b64 = salt_with_encrypted_hashhex_payload_b64.encrypted_hashhex_payload_b64.as_bytes();
+        let key_iv = derive_key_iv_pair(salt, secret.as_bytes())?;
+        
+        // payload is in base64, so convert it back into binary first before decryption
+        let encrypted_hashhex_payload = {
+            let mut buf = Vec::new();
+            base64::decode_config_buf(encrypted_hashhex_payload_b64, base64::MIME, &mut buf)?;
+            buf
+        };
+
+        let iv_opt = match &key_iv.iv {
+            &Some(ref iv) => Some(iv.as_slice()),
+            &None => None,
+        };
+
+        let hashhex_payload = symm::decrypt(
+            get_aes_algo(),
+            &key_iv.key,
+            iv_opt,
+            encrypted_hashhex_payload.as_slice())?;
+
+        // need to convert hex back into binary for the originally attached hash value derived from the payload
+        let payload_hashhex = &hashhex_payload[0..SHA1_DIGEST_HEX_COUNT];
+        let payload_hash = str::from_utf8(payload_hashhex)?.from_hex()?;
+        let payload = &hashhex_payload[SHA1_DIGEST_HEX_COUNT..];
+
+        pbkdf2::verify(
+            &digest::SHA1,
+            HASH_ITERATIONS,
+            salt,
+            payload,
+            payload_hash.as_slice())?;
+        
+        Ok(payload.to_vec())
+    }
+
+    pub fn get_keys(&self) -> Keys<String, SaltEncryptedPayloadGroup> {
+        self.mapping.keys()
+    }
+
+    fn prep_salt_with_encrypted_hashhex_payload_b64<V>(&self, key: &str, secret: &str, value: &V) -> Result<SaltEncryptedPayloadGroup> where
+        V: Serialize {
         
         let mut payload = Vec::new();
         value.serialize(&mut Serializer::new(&mut payload))?;
         let payload = payload;
 
+        self.prep_salt_with_encrypted_hashhex_payload_raw_b64(key, secret, payload)
+    }
+
+    fn prep_salt_with_encrypted_hashhex_payload_raw_b64<P>(&self, key: &str, secret: &str, payload: P) -> Result<SaltEncryptedPayloadGroup> where
+        P: Into<Vec<u8>> {
+
+        let payload = payload.into();
         let salt = create_random_salt(SALT_LEN);
         let key_iv = derive_key_iv_pair(salt.as_slice(), secret.as_bytes())?;
 
@@ -230,94 +348,6 @@ impl AuthMgmt {
 
         Ok(salt_with_encrypted_hashhex_payload_b64)
     }
-
-    pub fn add<K, S, V>(&mut self, key: K, secret: S, value: &V) -> Result<()> where 
-        K: Into<String>,
-        S: Into<String>,
-        V: Serialize {
-
-        let key = key.into();
-        let secret = secret.into();
-        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&key, &secret, value)?;
-
-        // ignore the possible Option
-        // because the value has been checked before insertion
-        let _ = self.mapping.insert(key, salt_with_encrypted_hashhex_payload_b64);
-        Ok(())
-    }
-
-    pub fn delete(&mut self, key: &str, secret: &str) -> Result<()> {
-        self.verify(key, secret)?;
-        self.force_delete(key)
-    }
-
-    pub fn force_delete(&mut self, key: &str) -> Result<()> {
-        self.mapping.remove(key)
-            .map(|_| ())
-            .ok_or_else(|| AuthErr::KeyMissing)
-    }
-
-    pub fn update<V: Serialize>(&mut self, key: &str, secret: &str, value: &V) -> Result<()> {
-        self.verify(key, secret)?;
-        let salt_with_encrypted_hashhex_payload_b64 = self.prep_salt_with_encrypted_hashhex_payload_b64(&key, &secret, value)?;
-
-        let mapping_value = self.mapping.get_mut(key).ok_or_else(|| AuthErr::KeyMissing)?;
-        *mapping_value = salt_with_encrypted_hashhex_payload_b64;
-        Ok(())
-    }
-
-    pub fn verify(&self, key: &str, secret: &str) -> Result<Vec<u8>> {
-        let salt_with_encrypted_hashhex_payload_b64 = self.mapping.get(key)
-            .ok_or_else(|| AuthErr::KeyMissing)?;
-
-        let salt = salt_with_encrypted_hashhex_payload_b64.salt.as_bytes();
-        let encrypted_hashhex_payload_b64 = salt_with_encrypted_hashhex_payload_b64.encrypted_hashhex_payload_b64.as_bytes();
-        let key_iv = derive_key_iv_pair(salt, secret.as_bytes())?;
-        
-        // payload is in base64, so convert it back into binary first before decryption
-        let encrypted_hashhex_payload = {
-            let mut buf = Vec::new();
-            base64::decode_config_buf(encrypted_hashhex_payload_b64, base64::MIME, &mut buf)?;
-            buf
-        };
-
-        let iv_opt = match &key_iv.iv {
-            &Some(ref iv) => Some(iv.as_slice()),
-            &None => None,
-        };
-
-        let hashhex_payload = symm::decrypt(
-            get_aes_algo(),
-            &key_iv.key,
-            iv_opt,
-            encrypted_hashhex_payload.as_slice())?;
-
-        // need to convert hex back into binary for the originally attached hash value derived from the payload
-        let payload_hashhex = &hashhex_payload[0..SHA1_DIGEST_HEX_COUNT];
-        let payload_hash = str::from_utf8(payload_hashhex)?.from_hex()?;
-        let payload = &hashhex_payload[SHA1_DIGEST_HEX_COUNT..];
-
-        pbkdf2::verify(
-            &digest::SHA1,
-            HASH_ITERATIONS,
-            salt,
-            payload,
-            payload_hash.as_slice())?;
-        
-        Ok(payload.to_vec())
-    }
-
-    pub fn exchange<'a, D: Deserialize<'a>>(&self, key: &str, secret: &str) -> Result<D> where {
-        let payload = self.verify(key, secret)?;
-
-        let mut de = Deserializer::new(payload.as_slice());
-        let payload_der: D = Deserialize::deserialize(&mut de)?;
-        Ok(payload_der)
-    }
-
-    pub fn get_keys(&self) -> Keys<String, SaltEncryptedPayloadGroup> {
-        self.mapping.keys()
-    }
 }
 
 #[cfg(test)]
@@ -326,7 +356,7 @@ mod test {
     use file;
     use std::fs;
 
-    // payload: String = Hello how are you today?
+    // payload == b"Hello how are you today?"
     const HELLO_WORLD_KNOWN_SALT_BUF: [u8; 130] = [
         0x92, 0x81, 0xA5, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x92, 0xA1,
         0x88, 0xD9, 0x6E, 0x61, 0x6D, 0x35, 0x66, 0x59, 0x62, 0x38,
@@ -368,17 +398,20 @@ mod test {
         assert!(do_remove_file.is_ok());
     }
 
-    // #[test]
-    // fn test_exchange_hello_world_known_salt() {
-    //     let buf = &HELLO_WORLD_KNOWN_SALT_BUF[..];
-    //     let mut de = Deserializer::new(buf);
+    #[test]
+    fn test_exchange_hello_world_known_salt() {
+        let buf = &HELLO_WORLD_KNOWN_SALT_BUF[..];
+        let mut de = Deserializer::new(buf);
 
-    //     let auth_mgmt: AuthMgmt = Deserialize::deserialize(&mut de)
-    //         .expect("Unable to deserialize buffer content into AuthMgmt");
+        let auth_mgmt: AuthMgmt = Deserialize::deserialize(&mut de)
+            .expect("Unable to deserialize buffer content into AuthMgmt");
 
-    //     let payload_der: String = auth_mgmt.exchange("hello", "world").unwrap();
-    //     assert!(payload_der == "Hello how are you today?");
-    // }
+        let payload = auth_mgmt.verify("hello", "world").unwrap();
+
+        assert!(payload.into_iter()
+            .zip(b"Hello how are you today?".iter())
+            .all(|(l, r)| l == *r));
+    }
 
     #[test]
     fn test_add_exchange_hello_world() {
@@ -389,7 +422,7 @@ mod test {
         auth_mgmt.add("hello", "world", &orig_payload);
 
         // exchange
-        let payload_der: String = auth_mgmt.exchange("hello", "world").unwrap();
-        assert!(payload_der == orig_payload);
+        let value: String = auth_mgmt.exchange("hello", "world").unwrap();
+        assert!(value == orig_payload);
     }
 }
