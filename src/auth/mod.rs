@@ -6,8 +6,10 @@ use openssl::symm::{self, Cipher};
 use ring::{digest, pbkdf2};
 use ring::error::Unspecified;
 use ring::rand::{SecureRandom, SystemRandom};
-use rmp_serde::{self, Deserializer, Serializer};
-use serde::{Deserialize, Serialize};
+use rmp_serde;
+use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
+use serde_json;
 use serialize::hex::{FromHex, FromHexError, ToHex};
 use std;
 use std::str::{self, Utf8Error};
@@ -27,6 +29,7 @@ pub enum AuthErr {
     Ring(Unspecified),
     RmpSerdeDecode(rmp_serde::decode::Error),
     RmpSerdeEncode(rmp_serde::encode::Error),
+    SerdeJson(serde_json::Error),
     Str(Utf8Error),
 }
 
@@ -72,6 +75,12 @@ impl From<rmp_serde::encode::Error> for AuthErr {
     }
 }
 
+impl From<serde_json::Error> for AuthErr {
+    fn from(e: serde_json::Error) -> AuthErr {
+        AuthErr::SerdeJson(e)
+    }
+}
+
 impl From<Utf8Error> for AuthErr {
     fn from(e: Utf8Error) -> AuthErr {
         AuthErr::Str(e)
@@ -88,12 +97,14 @@ const CIPHER_ALGO_NAME: &'static str = "aes256";
 // multiply by 2 because hex has twice the length from binary u8 representation
 const SHA1_DIGEST_HEX_COUNT: usize = digest::SHA1_OUTPUT_LEN * 2;
 
-fn create_random_salt(salt_len: usize) -> Result<Vec<u8>> {
+fn create_random_salt_b64(salt_len: usize) -> Result<Vec<u8>> {
     let mut buf = vec![0u8; salt_len];
 
+    // base64 encoding is used to prevent \0 character from appearing in the byte vector
+    // since CString::new cannot accept null character
     let r = SystemRandom::new();
     r.fill(&mut buf)?;
-    Ok(buf)
+    Ok(base64::encode(&buf).into_bytes())
 }
 
 fn get_aes_algo() -> Cipher {
@@ -236,11 +247,9 @@ impl AuthMgmt {
         Ok(())
     }
 
-    pub fn exchange<'a, D: Deserialize<'a>>(&self, key: &str, secret: &str) -> Result<D> where {
-        let payload = self.verify(key, secret)?;
-
-        let mut de = Deserializer::new(payload.as_slice());
-        let value: D = Deserialize::deserialize(&mut de)?;
+    pub fn exchange<V: DeserializeOwned>(&self, key: &str, secret: &str) -> Result<V> where {
+        let mut payload = self.verify(key, secret)?;
+        let value: V = serde_json::from_slice(&mut payload)?;
         Ok(value)
     }
 
@@ -293,10 +302,7 @@ impl AuthMgmt {
     fn prep_salt_with_encrypted_hashhex_payload_b64<V>(&self, secret: &str, value: &V) -> Result<SaltEncryptedPayloadGroup> where
         V: Serialize {
         
-        let mut payload = Vec::new();
-        value.serialize(&mut Serializer::new(&mut payload))?;
-        let payload = payload;
-
+        let payload = serde_json::to_string(value)?;
         self.prep_salt_with_encrypted_hashhex_payload_raw_b64(secret, payload)
     }
 
@@ -304,7 +310,7 @@ impl AuthMgmt {
         P: Into<Vec<u8>> {
 
         let payload = payload.into();
-        let salt = create_random_salt(SALT_LEN)?;
+        let salt = create_random_salt_b64(SALT_LEN)?;
         let key_iv = derive_key_iv_pair(salt.as_slice(), secret.as_bytes())?;
 
         // binary hash of payload
@@ -354,6 +360,8 @@ impl AuthMgmt {
 mod test {
     use super::*;
     use file;
+    use rmp_serde::{Deserializer, Serializer};
+    use serde::de::Deserialize;
     use std::fs;
 
     // payload == b"Hello how are you today?"
