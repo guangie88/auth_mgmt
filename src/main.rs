@@ -4,6 +4,10 @@ extern crate error_chain;
 #[macro_use]
 extern crate log;
 extern crate log4rs;
+extern crate serde;
+
+#[macro_use]
+extern crate serde_derive;
 extern crate simple_logger;
 extern crate structopt;
 
@@ -13,10 +17,113 @@ extern crate structopt_derive;
 use std::process;
 use structopt::StructOpt;
 
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+struct Credentials {
+    username: String,
+    password: String,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CommonRoleFlags {
+    start: bool,
+    stop: bool,
+    shutdown: bool,
+    erase: bool,
+    config_read: bool,
+    config_update: bool,
+    initiated_bit: bool,
+    continuous_bit: bool,
+    explore: bool,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OxxxOnlyRoleFlags {
+    verify_oxxx_nxxs: bool,
+    import_oxxx_nxxs: bool,
+    export_oxxx_nxxs: bool,
+    oxxx_nxxs_read: bool,
+    oxxx_nxxs_schema_read: bool,
+    oxxx_nxxs_update: bool,
+    oxxx_nxxs_delete: bool,
+    oxxx_tasks_read: bool,
+    oxxx_tasks_schema_read: bool,
+    oxxx_ref_lxx_read: bool,
+    oxxx_red_lxx_update: bool,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OxxxRoleFlags {
+    common_role_flags: CommonRoleFlags,
+    oxxx_only_role_flags: OxxxOnlyRoleFlags,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OxxxAdminTaskCredentials {
+    admin_credentials: Option<Credentials>,
+    sensor_id: String,
+    allowed_roles: OxxxRoleFlags,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VxxOnlyRoleFlags {
+    verify_vxx_nxxs: bool,
+    import_vxx_nxxs: bool,
+    export_vxx_nxxs: bool,
+    send_to_merge_nxx: bool,
+    send_to_rename_nxx: bool,
+    send_to_prioritize_nxx: bool,
+    vxx_nxxs_read: bool,
+    vxx_nxxs_update: bool,
+    vxx_nxxs_delete: bool,
+    vxx_tasks_read: bool,
+    recv_production_result: bool,
+    send_bxxxx_fxxxs: bool,
+    send_vvv_production_resubmit_request: bool,
+    send_ww_stxxxing_production_request: bool,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VxxRoleFlags {
+    common_role_flags: CommonRoleFlags,
+    vxx_only_role_flags: VxxOnlyRoleFlags,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct E2RoleFlags {
+    common_role_flags: CommonRoleFlags,
+    vxx_only_role_flags: VxxOnlyRoleFlags,
+    oxxx_only_role_flags: OxxxOnlyRoleFlags,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct E2AdminTaskCredentials {
+    admin_credentials: Option<Credentials>,
+    sensor_id: String,
+    fx_credentials: Credentials,
+    allow_roles: E2RoleFlags,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImbuedPayload<T> {
+    t: T,
+    get_users: Option<bool>,
+    add_users: Option<bool>,
+    update_users: Option<bool>,
+    delete_users: Option<bool>,
+}
+
 mod errors {
     error_chain! {
-        errors {
-        }
+        errors {}
     }
 }
 
