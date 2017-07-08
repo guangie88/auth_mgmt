@@ -4,6 +4,9 @@
 extern crate auth;
 
 #[macro_use]
+extern crate derive_new;
+
+#[macro_use]
 extern crate error_chain;
 extern crate filebuffer;
 
@@ -29,21 +32,28 @@ use rmp_serde::Deserializer;
 use serde::Deserialize;
 use filebuffer::FileBuffer;
 use rocket::config::{Config, Environment};
+use rocket::http::Cookies;
 use rocket::response::NamedFile;
 use rocket::State;
 use rocket_contrib::JSON;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::Mutex;
 use structopt::StructOpt;
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(new, Debug, PartialEq, Deserialize, Serialize)]
+struct RespStatus {
+    status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 struct Credentials {
     username: String,
     password: String,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OxxxAdminTaskCredentials {
     #[serde(skip_serializing_if="Option::is_none")]
@@ -153,31 +163,140 @@ mod errors {
 // change between OxxxAdminTaskCredentials and E2AdminTaskCredentials
 type AdminTaskCredentials = OxxxAdminTaskCredentials;
 type IoError = std::io::Error;
+type Mappings = HashMap<String, AdminTaskCredentials>;
 type MAuthMgmt = Mutex<AuthMgmt>;
+type MMappings = Mutex<Mappings>;
 type StdResult<T, E> = std::result::Result<T, E>;
 
-#[get("/add_mapping")]
-fn add_mapping(_auth_mgmt: State<MAuthMgmt>) -> StdResult<(), ()> {
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+struct UserPwCreds {
+    user: String,
+    password: String,
+    creds: AdminTaskCredentials,
+}
+
+// constants
+const RESP_OK: &'static str = "ok";
+const RESP_INVALID_TOKEN: &'static str = "invalid token";
+const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
+const RESP_NOT_ALLOWED: &'static str = "not allowed";
+const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
+const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
+
+macro_rules! json_opt {
+    ($r:expr, $s:expr) => {
+        match $r {
+            Some(r) => r,
+            None => return JSON(RespStatus::new($s.to_owned())),
+        }
+    }
+}
+
+macro_rules! json_bool {
+    ($r:expr, $s:expr) => {
+        if $r {
+            $r
+        } else {
+            return JSON(RespStatus::new($s.to_owned()))
+        }
+    }
+}
+
+macro_rules! json_res {
+    ($r:expr, $s:expr) => {
+        match $r {
+            Ok(r) => r,
+            Err(_) => return JSON(RespStatus::new($s.to_owned())),
+        }
+    }
+}
+
+macro_rules! json_check_ok {
+    ($j:expr) => {
+        match $j.status.as_str() {
+            RESP_OK => $j,
+            _ => return $j,
+        }
+    }
+}
+
+macro_rules! get_cred {
+    ($cookies:expr, $mappings:expr) => {{
+        let token = json_opt!($cookies.get("token"), RESP_NO_SUCH_COOKIE);
+        let mappings = json_res!($mappings.lock(), RESP_UNABLE_TO_LOCK);
+        let creds = json_opt!(mappings.get(token.value()), RESP_INVALID_TOKEN);
+        creds.clone()
+    }}
+}
+
+fn compress_opt_bool(opt: Option<bool>) -> bool {
+    match opt {
+        Some(v) => v,
+        None => false,
+    }
+}
+
+#[post("/add_mapping", data = "<user_pw_creds>")]
+fn add_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+    let creds = get_cred!(cookies, &mappings);
+    let add_users = compress_opt_bool(creds.add_users);
+
+    // check for permission
+    json_bool!(add_users, RESP_NOT_ALLOWED);
+
+    // perform the actual adding of credentials here
+    let mut auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
+    json_res!(auth_mgmt.add(user_pw_creds.user.clone(), user_pw_creds.password.clone(), &user_pw_creds.creds), RESP_UNABLE_TO_PROCESS);
+    JSON(RespStatus::new(RESP_OK.to_owned()))
+}
+
+#[delete("/delete_mapping")]
+fn delete_mapping(_auth_mgmt: State<MAuthMgmt>) -> JSON<RespStatus> {
     unimplemented!();
 }
 
-#[get("/delete_mapping")]
-fn delete_mapping(_auth_mgmt: State<MAuthMgmt>) -> StdResult<(), ()> {
+fn force_delete_mapping_impl(auth_mgmt: &State<MAuthMgmt>, mappings: &State<MMappings>, cookies: &Cookies, user: &str) -> JSON<RespStatus> {
+    let creds = get_cred!(cookies, mappings);
+    let delete_users = compress_opt_bool(creds.delete_users);
+
+    // check for permission
+    json_bool!(delete_users, RESP_NOT_ALLOWED);
+
+    // perform the actual delete here
+    let mut auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
+    json_res!(auth_mgmt.force_delete(user), RESP_UNABLE_TO_PROCESS);
+    JSON(RespStatus::new(RESP_OK.to_owned()))
+}
+
+#[delete("/force_delete_mapping", data = "<user>")]
+fn force_delete_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, user: String) -> JSON<RespStatus> {
+    force_delete_mapping_impl(&auth_mgmt, &mappings, &cookies, user.as_ref())
+}
+
+#[put("/update_mapping", data = "<creds>")]
+fn update_mapping(_auth_mgmt: State<MAuthMgmt>, _mappings: State<MMappings>, _cookies: Cookies, creds: JSON<AdminTaskCredentials>) -> JSON<RespStatus> {
+    // let creds = get_cred!(cookies, mappings);
+    // let update_users = compress_opt_bool(creds.update_users);
+
+    // // check for permission
+    // json_bool!(update_users, RESP_NOT_ALLOWED);
+
+    // // perform the actual self update here
+    // let mut auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
+    // json_res!(auth_mgmt.update(user), RESP_UNABLE_TO_PROCESS);
+    // JSON(RespStatus::new(RESP_OK.to_owned()))
     unimplemented!();
 }
 
-#[get("/force_delete_mapping")]
-fn force_delete_mapping(_auth_mgmt: State<MAuthMgmt>) -> StdResult<(), ()> {
-    unimplemented!();
-}
-
-#[get("/update_mapping")]
-fn update_mapping(_auth_mgmt: State<MAuthMgmt>) -> StdResult<(), ()> {
-    unimplemented!();
+#[put("/force_update_mapping", data = "<user_pw_creds>")]
+fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+    // delete then followed by add
+    json_check_ok!(force_delete_mapping_impl(&auth_mgmt, &mappings, &cookies, user_pw_creds.user.as_ref()));
+    add_mapping(auth_mgmt, mappings, cookies, user_pw_creds)
 }
 
 #[get("/exchange")]
-fn exchange(_auth_mgmt: State<MAuthMgmt>) -> StdResult<JSON<AdminTaskCredentials>, ()> {
+fn exchange(_auth_mgmt: State<MAuthMgmt>) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
     unimplemented!();
 }
 
@@ -234,8 +353,9 @@ fn run() -> Result<()> {
     rocket::custom(rocket_config, false)
         .manage(config)
         .manage(Mutex::new(auth_mgmt))
+        .manage(Mutex::new(Mappings::new()))
         .mount("/", routes![
-            add_mapping, delete_mapping, force_delete_mapping, update_mapping, exchange,
+            add_mapping, delete_mapping, force_delete_mapping, update_mapping, force_update_mapping, exchange,
             get_file]).launch();
 
     Ok(())
