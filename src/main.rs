@@ -1,4 +1,4 @@
-#![feature(plugin)]
+#![feature(plugin, rustc_private)]
 #![plugin(rocket_codegen)]
 
 extern crate auth;
@@ -13,6 +13,7 @@ extern crate filebuffer;
 #[macro_use]
 extern crate log;
 extern crate log4rs;
+extern crate ring;
 extern crate rmp_serde;
 extern crate rocket;
 extern crate rocket_contrib;
@@ -21,6 +22,7 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate serialize;
 extern crate simple_logger;
 extern crate structopt;
 
@@ -31,11 +33,13 @@ use auth::auth::AuthMgmt;
 use rmp_serde::Deserializer;
 use serde::Deserialize;
 use filebuffer::FileBuffer;
+use ring::{digest, pbkdf2};
 use rocket::config::{Config, Environment};
-use rocket::http::Cookies;
+use rocket::http::{Cookie, Cookies};
 use rocket::response::NamedFile;
 use rocket::State;
 use rocket_contrib::JSON;
+use serialize::hex::ToHex;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -180,6 +184,8 @@ struct UserPwCreds {
 }
 
 // constants
+const TOKEN_NAME: &'static str = "token";
+
 const RESP_OK: &'static str = "ok";
 const RESP_INVALID_TOKEN: &'static str = "invalid token";
 const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
@@ -227,7 +233,7 @@ macro_rules! json_check_ok {
 
 macro_rules! get_cred {
     ($cookies:expr, $token_mappings:expr) => {{
-        let token = json_opt!($cookies.get("token"), RESP_NO_SUCH_COOKIE);
+        let token = json_opt!($cookies.get(TOKEN_NAME), RESP_NO_SUCH_COOKIE);
         let creds = json_opt!($token_mappings.get(token.value()), RESP_INVALID_TOKEN);
         creds.clone()
     }}
@@ -330,13 +336,44 @@ fn login_exchange_impl(auth_mgmt: &State<MAuthMgmt>, creds: &JSON<Credentials>) 
     }
 }
 
+fn generate_hash(creds: &Credentials) -> String {
+    const HASH_ITERATIONS: u32 = 1024;
+
+    // generate the salt in a fixed manner based on username only
+    let salt = creds.username.as_bytes();
+    let secret = creds.password.as_bytes();
+    let mut hashed_secret = [0u8; digest::SHA256_OUTPUT_LEN];
+
+    pbkdf2::derive(
+        &digest::SHA256,
+        HASH_ITERATIONS,
+        salt,
+        secret,
+        &mut hashed_secret);
+
+    hashed_secret.to_hex().to_lowercase()
+}
+
 #[post("/login", data = "<creds>")]
-fn login(auth_mgmt: State<MAuthMgmt>, mut cookies: Cookies, creds: JSON<Credentials>) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
+fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, creds: JSON<Credentials>) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
     let res = login_exchange_impl(&auth_mgmt, &creds);
 
-    // if let &Ok(ref admin_task_creds) = &res {
-    //     AdminTaskCredentials
-    // }
+    if let &Ok(ref admin_task_creds) = &res {
+        // store into credential mappings + cookies
+        match mappings.lock() {
+            Ok(mut mappings) => {
+                let (ref mut user_mappings, ref mut token_mappings) = *mappings;
+
+                // generate the hash string
+                let hash_str = generate_hash(&*creds);
+
+                cookies.add(Cookie::new(TOKEN_NAME.to_owned(), hash_str.clone()));
+                user_mappings.insert(creds.username.clone(), hash_str.clone());
+                token_mappings.insert(hash_str, (**admin_task_creds).clone());
+            },
+            Err(_) => return Err(JSON(RespStatus::new(RESP_UNABLE_TO_LOCK.to_owned()))),
+        }
+    }
 
     res
 }
