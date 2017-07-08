@@ -1,4 +1,4 @@
-#![feature(plugin, rustc_private)]
+#![feature(custom_derive, plugin, rustc_private)]
 #![plugin(rocket_codegen)]
 
 extern crate auth;
@@ -8,6 +8,7 @@ extern crate derive_new;
 
 #[macro_use]
 extern crate error_chain;
+extern crate file;
 extern crate filebuffer;
 
 #[macro_use]
@@ -36,11 +37,13 @@ use filebuffer::FileBuffer;
 use ring::{digest, pbkdf2};
 use rocket::config::{Config, Environment};
 use rocket::http::{Cookie, Cookies};
-use rocket::response::NamedFile;
+use rocket::request::Form;
+use rocket::response::{Flash, NamedFile, Redirect};
 use rocket::State;
 use rocket_contrib::JSON;
 use serialize::hex::ToHex;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::Mutex;
@@ -51,7 +54,7 @@ struct RespStatus {
     status: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, FromForm, PartialEq, Deserialize, Serialize)]
 struct Credentials {
     username: String,
     password: String,
@@ -191,8 +194,13 @@ const RESP_INVALID_TOKEN: &'static str = "invalid token";
 const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
 const RESP_NO_SUCH_CREDENTIALS: &'static str = "no such credentials";
 const RESP_NOT_ALLOWED: &'static str = "not allowed";
+const RESP_UNABLE_TO_CONVERT_TO_JSON: &'static str = "unable to convert to JSON";
 const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
 const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
+const RESP_UNABLE_TO_WRITE_FILE: &'static str = "unable to write file";
+
+const WEB_INDEX_PATH: &'static str = "/site/index.html";
+const WEB_OVERVIEW_PATH: &'static str = "/site/overview.html";
 
 macro_rules! json_opt {
     ($r:expr, $s:expr) => {
@@ -246,8 +254,14 @@ fn compress_opt_bool(opt: Option<bool>) -> bool {
     }
 }
 
+fn write_auth_to_file(auth_mgmt: &AuthMgmt, config: &MainConfig) -> JSON<RespStatus> {
+    let auth_mgmt_str = json_res!(serde_json::to_string(auth_mgmt), RESP_UNABLE_TO_CONVERT_TO_JSON);
+    json_res!(file::put(&config.auth_bin_path, auth_mgmt_str.as_bytes()), RESP_UNABLE_TO_WRITE_FILE);
+    JSON(RespStatus::new(RESP_OK.to_owned()))
+}
+
 #[post("/add_mapping", data = "<user_pw_creds>")]
-fn add_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+fn add_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
     let (_, ref token_mappings) = *json_res!(mappings.lock(), RESP_UNABLE_TO_LOCK);
     let admin_task_creds = get_cred!(cookies, token_mappings);
     let add_users = compress_opt_bool(admin_task_creds.add_users);
@@ -258,10 +272,14 @@ fn add_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies:
     // perform the actual adding of credentials here
     let mut auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
     json_res!(auth_mgmt.add(user_pw_creds.username.clone(), user_pw_creds.password.clone(), &user_pw_creds.creds), RESP_UNABLE_TO_PROCESS);
-    JSON(RespStatus::new(RESP_OK.to_owned()))
+    JSON(RespStatus::new(RESP_OK.to_owned()));
+
+    write_auth_to_file(&*auth_mgmt, &*config)
 }
 
-fn generic_delete_mapping_impl<T, E, F: FnOnce(&mut AuthMgmt) -> StdResult<T, E>>(auth_mgmt: &State<MAuthMgmt>, mappings: &State<MMappings>, cookies: &Cookies, username: &str, del_fn: F) -> JSON<RespStatus> {
+fn generic_delete_mapping_impl<T, E, F>(auth_mgmt: &State<MAuthMgmt>, config: &State<MainConfig>, mappings: &State<MMappings>, cookies: &Cookies, username: &str, del_fn: F) -> JSON<RespStatus> 
+    where F: FnOnce(&mut AuthMgmt) -> StdResult<T, E> {
+
     let (ref mut user_mappings, ref mut token_mappings) = *json_res!(mappings.lock(), RESP_UNABLE_TO_LOCK);
 
     let admin_task_creds = get_cred!(cookies, token_mappings);
@@ -283,25 +301,25 @@ fn generic_delete_mapping_impl<T, E, F: FnOnce(&mut AuthMgmt) -> StdResult<T, E>
         let _ = user_mappings.remove(username);
     }
 
-    JSON(RespStatus::new(RESP_OK.to_owned()))
+    write_auth_to_file(&*auth_mgmt, &*config)
 }
 
 #[delete("/delete_mapping", data = "<creds>")]
-fn delete_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, creds: JSON<Credentials>) -> JSON<RespStatus> {
-    generic_delete_mapping_impl(&auth_mgmt, &mappings, &cookies, &creds.username, |auth_mgmt| auth_mgmt.delete(&creds.username, &creds.password))
+fn delete_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, creds: JSON<Credentials>) -> JSON<RespStatus> {
+    generic_delete_mapping_impl(&auth_mgmt, &config, &mappings, &cookies, &creds.username, |auth_mgmt| auth_mgmt.delete(&creds.username, &creds.password))
 }
 
-fn force_delete_mapping_impl(auth_mgmt: &State<MAuthMgmt>, mappings: &State<MMappings>, cookies: &Cookies, username: &str) -> JSON<RespStatus> {
-    generic_delete_mapping_impl(&auth_mgmt, &mappings, &cookies, username, |auth_mgmt| auth_mgmt.force_delete(username))
+fn force_delete_mapping_impl(auth_mgmt: &State<MAuthMgmt>, config: &State<MainConfig>, mappings: &State<MMappings>, cookies: &Cookies, username: &str) -> JSON<RespStatus> {
+    generic_delete_mapping_impl(auth_mgmt, config, mappings, cookies, username, |auth_mgmt| auth_mgmt.force_delete(username))
 }
 
 #[delete("/force_delete_mapping", data = "<username>")]
-fn force_delete_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, username: String) -> JSON<RespStatus> {
-    force_delete_mapping_impl(&auth_mgmt, &mappings, &cookies, &username)
+fn force_delete_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, username: String) -> JSON<RespStatus> {
+    force_delete_mapping_impl(&auth_mgmt, &config, &mappings, &cookies, &username)
 }
 
 #[put("/update_mapping", data = "<user_pw_creds>")]
-fn update_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+fn update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
     let (_, ref token_mappings) = *json_res!(mappings.lock(), RESP_UNABLE_TO_LOCK);
     let admin_task_creds = get_cred!(cookies, token_mappings);
     let update_users = compress_opt_bool(admin_task_creds.update_users);
@@ -314,17 +332,17 @@ fn update_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cooki
     json_res!(auth_mgmt.update(&user_pw_creds.username, &user_pw_creds.password, &user_pw_creds.creds), RESP_UNABLE_TO_PROCESS);
 
     // no need to change the login mappings because this operation ensures that the password remains the same
-    JSON(RespStatus::new(RESP_OK.to_owned()))
+    write_auth_to_file(&*auth_mgmt, &*config)
 }
 
 #[put("/force_update_mapping", data = "<user_pw_creds>")]
-fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
     // delete then followed by add
-    json_check_ok!(force_delete_mapping_impl(&auth_mgmt, &mappings, &cookies, &user_pw_creds.username));
-    add_mapping(auth_mgmt, mappings, cookies, user_pw_creds)
+    json_check_ok!(force_delete_mapping_impl(&auth_mgmt, &config, &mappings, &cookies, &user_pw_creds.username));
+    add_mapping(auth_mgmt, config, mappings, cookies, user_pw_creds)
 }
 
-fn login_exchange_impl(auth_mgmt: &State<MAuthMgmt>, creds: &JSON<Credentials>) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
+fn login_exchange_impl(auth_mgmt: &State<MAuthMgmt>, creds: &Credentials) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
     let auth_mgmt = match auth_mgmt.lock() {
         Ok(auth_mgmt) => auth_mgmt,
         Err(_) => return Err(JSON(RespStatus::new(RESP_UNABLE_TO_LOCK.to_owned()))),
@@ -355,27 +373,46 @@ fn generate_hash(creds: &Credentials) -> String {
 }
 
 #[post("/login", data = "<creds>")]
-fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, creds: JSON<Credentials>) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
-    let res = login_exchange_impl(&auth_mgmt, &creds);
+fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, creds: Form<Credentials>) -> StdResult<Redirect, Flash<Redirect>> {
+    let creds = creds.get();
+    let admin_task_creds = login_exchange_impl(&auth_mgmt, creds);
 
-    if let &Ok(ref admin_task_creds) = &res {
+    let admin_task_creds = admin_task_creds.map_err(|_| {
+        Flash::error(Redirect::to(WEB_INDEX_PATH), "Invalid credentials provided.")
+    });
+
+    admin_task_creds.and_then(|admin_task_creds| {
         // store into credential mappings + cookies
         match mappings.lock() {
             Ok(mut mappings) => {
                 let (ref mut user_mappings, ref mut token_mappings) = *mappings;
 
                 // generate the hash string
-                let hash_str = generate_hash(&*creds);
+                let hash_str = generate_hash(creds);
 
                 cookies.add(Cookie::new(TOKEN_NAME.to_owned(), hash_str.clone()));
                 user_mappings.insert(creds.username.clone(), hash_str.clone());
-                token_mappings.insert(hash_str, (**admin_task_creds).clone());
-            },
-            Err(_) => return Err(JSON(RespStatus::new(RESP_UNABLE_TO_LOCK.to_owned()))),
-        }
-    }
+                token_mappings.insert(hash_str, admin_task_creds.clone());
 
-    res
+                Ok(Redirect::to(WEB_OVERVIEW_PATH))
+            },
+            Err(_) => Err(Flash::error(Redirect::to(WEB_INDEX_PATH), "Server error, unable to obtain mutex for credentials mapping.")),
+        }
+    })
+}
+
+#[get("/info")]
+fn info(mappings: State<MMappings>, cookies: Cookies) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
+    let mappings = match mappings.lock() {
+        Ok(mappings) => mappings,
+        Err(_) => return Err(JSON(RespStatus::new(RESP_UNABLE_TO_LOCK.to_owned()))),
+    };
+
+    let (_, ref token_mappings) = *mappings;
+    let token = cookies.get(TOKEN_NAME).unwrap();
+    let admin_task_creds = token_mappings.get(token.value()).unwrap();
+
+    Ok(JSON(admin_task_creds.clone()))
 }
 
 #[post("/exchange", data = "<creds>")]
@@ -383,9 +420,14 @@ fn exchange(auth_mgmt: State<MAuthMgmt>, creds: JSON<Credentials>) -> StdResult<
     login_exchange_impl(&auth_mgmt, &creds)
 }
 
-#[get("/files/<path..>")]
+#[get("/site/<path..>")]
 fn get_file(path: PathBuf) -> StdResult<NamedFile, IoError> {
-    NamedFile::open(Path::new("files/").join(path))
+    NamedFile::open(Path::new("site/").join(path))
+}
+
+#[get("/")]
+fn index() -> Redirect {
+    Redirect::to(WEB_INDEX_PATH)
 }
 
 #[derive(StructOpt, Debug)]
@@ -417,14 +459,58 @@ fn run() -> Result<()> {
             .chain_err(|| "Unable to initialize default logger")?;
     }
 
-    let auth_mgmt: AuthMgmt = {
-        let fbuf = FileBuffer::open(&config.auth_bin_path)
-            .chain_err(|| format!("Unable to open '{}'", config.auth_bin_path))?;
+    let auth_mgmt: AuthMgmt = match fs::metadata(&config.auth_bin_path) {
+        Ok(_) => {
+            let fbuf = FileBuffer::open(&config.auth_bin_path)
+                .chain_err(|| format!("Unable to open '{}'", config.auth_bin_path))?;
 
-        let mut de = Deserializer::new(&fbuf[..]);
+            let mut de = Deserializer::new(&fbuf[..]);
 
-        Deserialize::deserialize(&mut de)
-            .chain_err(|| format!("Unable to deserialize content from '{}' into AuthMgmt", config.auth_bin_path))?
+            Deserialize::deserialize(&mut de)
+                .chain_err(|| format!("Unable to deserialize content from '{}' into AuthMgmt", config.auth_bin_path))?
+        },
+        Err(_) => {
+            info!("Authentication file at '{}' does not exist, creating a new authentication management...", config.auth_bin_path);
+
+            // creates a default admin with only permissions to do admin stuff
+            let mut auth_mgmt = AuthMgmt::new();
+
+            let add_res = auth_mgmt.add("admin".to_owned(), "admin".to_owned(),
+                &AdminTaskCredentials {
+                    admin_credentials: None,
+                    sensor_id: "".to_owned(),
+                    start: false,
+                    stop: false,
+                    shutdown: false,
+                    erase: false,
+                    config_read: false,
+                    config_update: false,
+                    initiated_bit: false,
+                    continuous_bit: false,
+                    explore: false,
+                    verify_oxxx_nxxs: false,
+                    import_oxxx_nxxs: false,
+                    export_oxxx_nxxs: false,
+                    oxxx_nxxs_read: false,
+                    oxxx_nxxs_schema_read: false,
+                    oxxx_nxxs_update: false,
+                    oxxx_nxxs_delete: false,
+                    oxxx_tasks_read: false,
+                    oxxx_tasks_schema_read: false,
+                    oxxx_ref_lxx_read: false,
+                    oxxx_red_lxx_update: false,
+                    get_users: Some(true),
+                    add_users: Some(true),
+                    update_users: Some(true),
+                    delete_users: Some(true),
+                });
+
+            if let Err(_) = add_res {
+                bail!("Unable to add default admin credentials");
+            }
+
+            auth_mgmt
+        },
     };
 
     let rocket_config = Config::build(Environment::Production)
@@ -438,9 +524,9 @@ fn run() -> Result<()> {
         .manage(Mutex::new(auth_mgmt))
         .manage(Mutex::new((UserMappings::new(), TokenMappings::new())))
         .mount("/", routes![
-            login, exchange,
-            add_mapping, delete_mapping, force_delete_mapping, update_mapping, force_update_mapping,
-            get_file]).launch();
+            index, get_file,
+            login, exchange, info,
+            add_mapping, delete_mapping, force_delete_mapping, update_mapping, force_update_mapping]).launch();
 
     Ok(())
 }

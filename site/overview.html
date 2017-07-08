@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>SSF Authentication Management Overview</title>
+
+    <!-- Vue.js -->
+    <script src="https://unpkg.com/vue"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-default/index.css">
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/vue-smart-table/2.5.0/vue-smart-table.js"></script>-->
+
+    <!-- axios -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+    <!-- Bootstrap 4 -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha256-k2WSCIexGzOj3Euiig+TlR8gA0EmPjuc79OEeY5L45g=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div id="overview" class="container">
+      <h1>SSF Authentication Management Overview</h1>
+
+      <ul class="nav nav-tabs nav-fill">
+        <li class="nav-item">
+          <a class="nav-link active" href="#info" data-toggle="tab" role="tab">Info</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#add" data-toggle="tab" role="tab">Add User</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#update" data-toggle="tab" role="tab">Update User</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#delete" data-toggle="tab" role="tab">Delete User</a>
+        </li>
+      </ul>
+
+      <div class="tab-content">
+        <div class="tab-pane active" id="info" role="tabpanel">
+          <p>{{adminTaskCreds}}</p>
+        </div>
+        <div class="tab-pane" id="add" role="tabpanel">...</div>
+        <div class="tab-pane" id="update" role="tabpanel">...</div>
+        <div class="tab-pane" id="delete" role="tabpanel">...</div>
+      </div>
+
+      <!--<div id="app">
+        <template>
+          <el-table :data="tableData" style="width: 100%">
+            <el-table-column prop="date" label="Date" width="180">
+            </el-table-column>
+            <el-table-column prop="name" label="Name" width="180">
+            </el-table-column>
+            <el-table-column prop="address" label="Address">
+            </el-table-column>
+          </el-table>
+        </template>
+      </div>-->
+    </div>
+
+    <!-- must be placed after all the templates -->
+    <script src="overview.js"></script>
+  </body>
+</html>
