@@ -1,8 +1,20 @@
-var Main = new Vue({
-  el: '#overview',
+const router = new VueRouter({
+  mode: 'history',
+  routes: [],
+});
+
+const Main = new Vue({
+  router,
+  el: '#app',
 
   data: {
-    adminTaskCreds: "Hello",
+    adminTaskCreds: '[not ready]',
+
+    logout() {
+      this.$cookies.remove('token', '/', window.location.hostname);
+      router.push('/');
+      router.go();
+    },
 
     // tableData: [{
     //   date: '2016-05-03',
@@ -26,8 +38,11 @@ var Main = new Vue({
   mounted() {
     axios.get('/info')
       .then(resp => {
-        console.log(resp);
-        this.adminTaskCreds = resp.data;
+        if (resp.data.status == "ok") {
+          this.adminTaskCreds = resp.data.data;
+        } else {
+          this.adminTaskCreds = resp.data.status;
+        }
       })
       .catch(error => alert(JSON.stringify(error)));
   },

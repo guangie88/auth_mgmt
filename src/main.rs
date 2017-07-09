@@ -32,7 +32,7 @@ extern crate structopt_derive;
 
 use auth::auth::AuthMgmt;
 use rmp_serde::Deserializer;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use filebuffer::FileBuffer;
 use ring::{digest, pbkdf2};
 use rocket::config::{Config, Environment};
@@ -49,9 +49,51 @@ use std::process;
 use std::sync::Mutex;
 use structopt::StructOpt;
 
+// constants
+const TOKEN_NAME: &'static str = "token";
+
+const RESP_OK: &'static str = "ok";
+const RESP_INVALID_TOKEN: &'static str = "invalid token";
+const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
+const RESP_NO_SUCH_CREDENTIALS: &'static str = "no such credentials";
+const RESP_NOT_ALLOWED: &'static str = "not allowed";
+const RESP_UNABLE_TO_CONVERT_TO_JSON: &'static str = "unable to convert to JSON";
+const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
+const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
+const RESP_UNABLE_TO_WRITE_FILE: &'static str = "unable to write file";
+
+const INDEX_FILENAME: &'static str = "index.html";
+const WEB_INDEX_PATH: &'static str = "/site/index.html";
+const WEB_OVERVIEW_PATH: &'static str = "/site/overview.html";
+
 #[derive(new, Debug, PartialEq, Deserialize, Serialize)]
 struct RespStatus {
     status: String,
+}
+
+#[derive(new, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(bound(deserialize = ""))]
+struct RespStatusWithData<T>
+where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
+    status: String,
+    data: Option<T>,
+}
+
+impl<T> From<RespStatus> for RespStatusWithData<T>
+where T: for<'de_inner> serde::Deserialize<'de_inner> + Serialize {
+    fn from(e: RespStatus) -> RespStatusWithData<T> {
+        RespStatusWithData::new(e.status, None)
+    }
+}
+
+impl<T> RespStatusWithData<T>
+where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
+    fn ok(v: T) -> RespStatusWithData<T> {
+        RespStatusWithData {
+            status: RESP_OK.to_owned(),
+            data: Some(v),
+        }
+    }
 }
 
 #[derive(Debug, Clone, FromForm, PartialEq, Deserialize, Serialize)]
@@ -163,7 +205,29 @@ struct E2AdminTaskCredentials {
 
 mod errors {
     error_chain! {
-        errors {}
+        errors {
+            AuthErr(e: String) {
+                description("authentication error")
+                display("authentication error: {}", e)
+            }
+            SyncPoisonError(e: String) {
+                description("poison error")
+                display("poison error: {}", e)
+            }
+        }
+    }
+}
+
+impl From<auth::auth::AuthErr> for Error {
+    fn from(e: auth::auth::AuthErr) -> Self {
+        Self::from_kind(ErrorKind::AuthErr(format!("{:?}", e)))
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(e: std::sync::PoisonError<T>) -> Self {
+        use std::error::Error;
+        Self::from_kind(ErrorKind::SyncPoisonError(e.description().to_string()))
     }
 }
 
@@ -186,27 +250,11 @@ struct UserPwCreds {
     creds: AdminTaskCredentials,
 }
 
-// constants
-const TOKEN_NAME: &'static str = "token";
-
-const RESP_OK: &'static str = "ok";
-const RESP_INVALID_TOKEN: &'static str = "invalid token";
-const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
-const RESP_NO_SUCH_CREDENTIALS: &'static str = "no such credentials";
-const RESP_NOT_ALLOWED: &'static str = "not allowed";
-const RESP_UNABLE_TO_CONVERT_TO_JSON: &'static str = "unable to convert to JSON";
-const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
-const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
-const RESP_UNABLE_TO_WRITE_FILE: &'static str = "unable to write file";
-
-const WEB_INDEX_PATH: &'static str = "/site/index.html";
-const WEB_OVERVIEW_PATH: &'static str = "/site/overview.html";
-
 macro_rules! json_opt {
     ($r:expr, $s:expr) => {
         match $r {
             Some(r) => r,
-            None => return JSON(RespStatus::new($s.to_owned())),
+            None => return JSON(RespStatus::new($s.to_owned()).into()),
         }
     }
 }
@@ -216,7 +264,7 @@ macro_rules! json_bool {
         if $r {
             $r
         } else {
-            return JSON(RespStatus::new($s.to_owned()))
+            return JSON(RespStatus::new($s.to_owned()).into())
         }
     }
 }
@@ -225,7 +273,7 @@ macro_rules! json_res {
     ($r:expr, $s:expr) => {
         match $r {
             Ok(r) => r,
-            Err(_) => return JSON(RespStatus::new($s.to_owned())),
+            Err(_) => return JSON(RespStatus::new($s.to_owned()).into()),
         }
     }
 }
@@ -342,16 +390,10 @@ fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, 
     add_mapping(auth_mgmt, config, mappings, cookies, user_pw_creds)
 }
 
-fn login_exchange_impl(auth_mgmt: &State<MAuthMgmt>, creds: &Credentials) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
-    let auth_mgmt = match auth_mgmt.lock() {
-        Ok(auth_mgmt) => auth_mgmt,
-        Err(_) => return Err(JSON(RespStatus::new(RESP_UNABLE_TO_LOCK.to_owned()))),
-    };
-
-    match auth_mgmt.exchange(&creds.username, &creds.password) {
-        Ok(admin_task_creds) => Ok(JSON(admin_task_creds)),
-        Err(_) => Err(JSON(RespStatus::new(RESP_NO_SUCH_CREDENTIALS.to_owned()))),
-    }
+fn login_exchange_impl(auth_mgmt: &State<MAuthMgmt>, creds: &Credentials) -> Result<AdminTaskCredentials> {
+    let auth_mgmt = auth_mgmt.lock()?;
+    let admin_task_creds = auth_mgmt.exchange(&creds.username, &creds.password)?;
+    Ok(admin_task_creds)
 }
 
 fn generate_hash(creds: &Credentials) -> String {
@@ -378,7 +420,7 @@ fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: C
     let admin_task_creds = login_exchange_impl(&auth_mgmt, creds);
 
     let admin_task_creds = admin_task_creds.map_err(|_| {
-        Flash::error(Redirect::to(WEB_INDEX_PATH), "Invalid credentials provided.")
+        Flash::error(Redirect::to(&format!("{}?failed=true", WEB_INDEX_PATH)), "Invalid credentials provided.")
     });
 
     admin_task_creds.and_then(|admin_task_creds| {
@@ -396,38 +438,39 @@ fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: C
 
                 Ok(Redirect::to(WEB_OVERVIEW_PATH))
             },
-            Err(_) => Err(Flash::error(Redirect::to(WEB_INDEX_PATH), "Server error, unable to obtain mutex for credentials mapping.")),
+            Err(_) => {
+                const ERR_MSG: &'static str = "Server error, unable to obtain mutex for credentials mapping.";
+                error!("{}", ERR_MSG);
+                Err(Flash::error(Redirect::to(WEB_INDEX_PATH), ERR_MSG))
+            },
         }
     })
 }
 
 #[get("/info")]
-fn info(mappings: State<MMappings>, cookies: Cookies) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
-    let mappings = match mappings.lock() {
-        Ok(mappings) => mappings,
-        Err(_) => return Err(JSON(RespStatus::new(RESP_UNABLE_TO_LOCK.to_owned()))),
-    };
+fn info(mappings: State<MMappings>, cookies: Cookies) -> JSON<RespStatusWithData<AdminTaskCredentials>> {
+    let (_, ref token_mappings) = *json_res!(mappings.lock(), RESP_UNABLE_TO_LOCK);
+    let admin_task_creds = get_cred!(cookies, token_mappings);
 
-    let (_, ref token_mappings) = *mappings;
-    let token = cookies.get(TOKEN_NAME).unwrap();
-    let admin_task_creds = token_mappings.get(token.value()).unwrap();
-
-    Ok(JSON(admin_task_creds.clone()))
+    JSON(RespStatusWithData::ok(admin_task_creds.clone()))
 }
 
 #[post("/exchange", data = "<creds>")]
-fn exchange(auth_mgmt: State<MAuthMgmt>, creds: JSON<Credentials>) -> StdResult<JSON<AdminTaskCredentials>, JSON<RespStatus>> {
-    login_exchange_impl(&auth_mgmt, &creds)
+fn exchange(auth_mgmt: State<MAuthMgmt>, creds: JSON<Credentials>) -> JSON<RespStatusWithData<AdminTaskCredentials>> {
+    match login_exchange_impl(&auth_mgmt, &creds) {
+        Ok(admin_task_creds) => JSON(RespStatusWithData::ok(admin_task_creds)),
+        Err(_) => JSON(RespStatusWithData::new(RESP_NO_SUCH_CREDENTIALS.to_owned(), None)),
+    }
 }
 
 #[get("/site/<path..>")]
-fn get_file(path: PathBuf) -> StdResult<NamedFile, IoError> {
-    NamedFile::open(Path::new("site/").join(path))
+fn get_file(config: State<MainConfig>, path: PathBuf) -> StdResult<NamedFile, IoError> {
+    NamedFile::open(Path::new(&config.site_path).join(path))
 }
 
 #[get("/")]
-fn index() -> Redirect {
-    Redirect::to(WEB_INDEX_PATH)
+fn index(config: State<MainConfig>) -> StdResult<NamedFile, IoError> {
+    NamedFile::open(Path::new(&config.site_path).join(INDEX_FILENAME))
 }
 
 #[derive(StructOpt, Debug)]
@@ -444,6 +487,9 @@ struct MainConfig {
 
     #[structopt(short = "b", long = "auth-bin", help = "Authentication BIN file path")]
     auth_bin_path: String,
+
+    #[structopt(short = "s", long = "site-path", help = "Site root path of HTTP hosting", default_value = "site")]
+    site_path: String,
 }
 
 use errors::*;
