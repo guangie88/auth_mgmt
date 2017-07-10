@@ -5,7 +5,9 @@ const app = new Vue({
 
   data: {
     adminTaskCreds: null,
+    currentUsername: null,
     toAddCreds: null,
+    toDeleteUsers: null,
     users: [],
     
     addUser() {
@@ -20,31 +22,33 @@ const app = new Vue({
         .catch(error => alert(JSON.stringify(error)));
     },
 
-    logout() {
-      this.$cookies.remove('token', '/', window.location.hostname);
-      window.location.href = '/';
+    deleteUsers() {
+      const confirmDeleteUserGroups = _.filter(this.toDeleteUsers, toDeleteUser => toDeleteUser.delete);
+      const confirmDeleteUsernames = _.map(confirmDeleteUserGroups, confirmDeleteUserGroup => confirmDeleteUserGroup.username);
+
+      // DELETE has a different API from POST
+      axios.delete('/force_delete_mappings', { data: confirmDeleteUsernames, headers: { 'Content-Type': 'application/json' } })
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            window.location.reload();
+          } else {
+            alert(resp.data.status);
+          }
+        })
+        .catch(error => alert(JSON.stringify(error)));
     },
 
-    // tableData: [{
-    //   date: '2016-05-03',
-    //   name: 'Tom',
-    //   address: 'No. 189, Grove St, Los Angeles'
-    // }, {
-    //   date: '2016-05-02',
-    //   name: 'Tom',
-    //   address: 'No. 189, Grove St, Los Angeles'
-    // }, {
-    //   date: '2016-05-04',
-    //   name: 'Tom',
-    //   address: 'No. 189, Grove St, Los Angeles'
-    // }, {
-    //   date: '2016-05-01',
-    //   name: 'Tom',
-    //   address: 'No. 189, Grove St, Los Angeles'
-    // }]
+    logout() {
+      this.$cookies.remove('username', '/', window.location.hostname);
+      this.$cookies.remove('token', '/', window.location.hostname);
+
+      window.location.href = '/';
+    },
   },
 
   mounted() {
+    this.currentUsername = this.$cookies.get('username');
+
     axios.get('/info')
       .then(resp => {
         if (resp.data.status == 'ok') {
@@ -64,6 +68,10 @@ const app = new Vue({
       .then(resp => {
         if (resp.data.status == 'ok') {
           this.users = resp.data.data;
+
+          this.toDeleteUsers = _.map(this.users, user => {
+            return { username: user, delete: false };
+          });
         }
       })
       .catch(error => alert(JSON.stringify(error)));

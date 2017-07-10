@@ -27,17 +27,19 @@
     <div id="app" class="container">
       <h1>SSF Authentication Management Overview</h1>
 
+      <p>Current username: <b>{{currentUsername}}</b></p>
+
       <ul class="nav nav-tabs nav-fill">
         <li class="nav-item">
           <a class="nav-link active" href="#info" data-toggle="tab" role="tab">Info</a>
         </li>
-        <li class="nav-item">
+        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.addUsers">
           <a class="nav-link" href="#add" data-toggle="tab" role="tab">Add User</a>
         </li>
-        <li class="nav-item">
+        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.updateUsers">
           <a class="nav-link" href="#update" data-toggle="tab" role="tab">Update User</a>
         </li>
-        <li class="nav-item">
+        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.deleteUsers">
           <a class="nav-link" href="#delete" data-toggle="tab" role="tab">Delete User</a>
         </li>
         <li class="nav-item">
@@ -69,7 +71,7 @@
           </table>
         </div>
 
-        <div class="tab-pane" id="add" role="tabpanel">
+        <div class="tab-pane" id="add" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.addUsers">
           <div v-if="toAddCreds !== null" class="form-horizontal">
             <!-- actual login username and password -->
             <div class="form-group">
@@ -115,42 +117,33 @@
               </tbody>
             </table>
 
-            <button type="submit" class="btn btn-primary btn-block" @click="addUser()">Add user</button>
+            <button class="btn btn-primary btn-block" @click="addUser()">Add user</button>
           </div>
         </div>
 
-        <div class="tab-pane" id="update" role="tabpanel">
+        <div class="tab-pane" id="update" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.updateUsers">
           Need to select user from list and key in password, to exchange for permissions and later update back.
         </div>
 
-        <div class="tab-pane" id="delete" role="tabpanel">
+        <div class="tab-pane" id="delete" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.deleteUsers">
           <table class="table table-striped">
             <thead class="thead-default">
               <tr>
                 <th>Users</th>
+                <th>Delete?</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="user in users">
-                <td>{{user}}</td>
+              <tr v-for="toDeleteUser in toDeleteUsers">
+                <td>{{toDeleteUser.username}}</td>
+                <td><input type="checkbox" v-model="toDeleteUser.delete"></td>
               </tr>
             </tbody>
           </table>
+
+          <button class="btn btn-danger btn-block" :disabled="_.every(toDeleteUsers, u => !u.delete)" @click="deleteUsers()">Delete user(s)</button>
         </div>
       </div>
-
-      <!--<div id="app">
-        <template>
-          <el-table :data="tableData" style="width: 100%">
-            <el-table-column prop="date" label="Date" width="180">
-            </el-table-column>
-            <el-table-column prop="name" label="Name" width="180">
-            </el-table-column>
-            <el-table-column prop="address" label="Address">
-            </el-table-column>
-          </el-table>
-        </template>
-      </div>-->
     </div>
 
     <!-- must be placed after all the templates -->

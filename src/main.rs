@@ -50,6 +50,7 @@ use std::sync::Mutex;
 use structopt::StructOpt;
 
 // constants
+const USERNAME_NAME: &'static str = "username";
 const TOKEN_NAME: &'static str = "token";
 
 const RESP_OK: &'static str = "ok";
@@ -83,6 +84,12 @@ impl<T> From<RespStatus> for RespStatusWithData<T>
 where T: for<'de_inner> serde::Deserialize<'de_inner> + Serialize {
     fn from(e: RespStatus) -> RespStatusWithData<T> {
         RespStatusWithData::new(e.status, None)
+    }
+}
+
+impl RespStatus {
+    fn ok() -> RespStatus {
+        RespStatus { status: RESP_OK.to_owned(), }
     }
 }
 
@@ -343,7 +350,7 @@ fn write_auth_to_file(auth_mgmt: &AuthMgmt, config: &MainConfig) -> JSON<RespSta
     json_res!(auth_mgmt.serialize(&mut Serializer::new(&mut buf)), RESP_UNABLE_TO_CONVERT_TO_MSGPACK);
     
     json_res!(file::put(&config.auth_bin_path, &buf), RESP_UNABLE_TO_WRITE_FILE);
-    JSON(RespStatus::new(RESP_OK.to_owned()))
+    JSON(RespStatus::ok())
 }
 
 #[post("/add_mapping", data = "<user_pw_creds>")]
@@ -358,7 +365,7 @@ fn add_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings:
     // perform the actual adding of credentials here
     let mut auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
     json_res!(auth_mgmt.add(user_pw_creds.username.clone(), user_pw_creds.password.clone(), &user_pw_creds.creds), RESP_UNABLE_TO_PROCESS);
-    JSON(RespStatus::new(RESP_OK.to_owned()));
+    JSON(RespStatus::ok());
 
     write_auth_to_file(&*auth_mgmt, &*config)
 }
@@ -395,13 +402,19 @@ fn delete_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappin
     generic_delete_mapping_impl(&auth_mgmt, &config, &mappings, &cookies, &creds.username, |auth_mgmt| auth_mgmt.delete(&creds.username, &creds.password))
 }
 
-fn force_delete_mapping_impl(auth_mgmt: &State<MAuthMgmt>, config: &State<MainConfig>, mappings: &State<MMappings>, cookies: &Cookies, username: &str) -> JSON<RespStatus> {
+fn force_delete_mappings_impl(auth_mgmt: &State<MAuthMgmt>, config: &State<MainConfig>, mappings: &State<MMappings>, cookies: &Cookies, username: &str) -> JSON<RespStatus> {
     generic_delete_mapping_impl(auth_mgmt, config, mappings, cookies, username, |auth_mgmt| auth_mgmt.force_delete(username))
 }
 
-#[delete("/force_delete_mapping", data = "<username>")]
-fn force_delete_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, username: String) -> JSON<RespStatus> {
-    force_delete_mapping_impl(&auth_mgmt, &config, &mappings, &cookies, &username)
+#[delete("/force_delete_mappings", data = "<usernames>")]
+fn force_delete_mappings(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, usernames: JSON<Vec<String>>) -> JSON<RespStatus> {
+    usernames.iter().fold(JSON(RespStatus::ok()), |prev_status, username| {
+        if prev_status.status == RESP_OK {
+            force_delete_mappings_impl(&auth_mgmt, &config, &mappings, &cookies, &username)
+        } else {
+            prev_status
+        }
+    })
 }
 
 #[put("/update_mapping", data = "<user_pw_creds>")]
@@ -424,7 +437,7 @@ fn update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappin
 #[put("/force_update_mapping", data = "<user_pw_creds>")]
 fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
     // delete then followed by add
-    json_check_ok!(force_delete_mapping_impl(&auth_mgmt, &config, &mappings, &cookies, &user_pw_creds.username));
+    json_check_ok!(force_delete_mappings_impl(&auth_mgmt, &config, &mappings, &cookies, &user_pw_creds.username));
     add_mapping(auth_mgmt, config, mappings, cookies, user_pw_creds)
 }
 
@@ -470,7 +483,9 @@ fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: C
                 // generate the hash string
                 let hash_str = generate_hash(creds);
 
+                cookies.add(Cookie::new(USERNAME_NAME.to_owned(), creds.username.clone()));
                 cookies.add(Cookie::new(TOKEN_NAME.to_owned(), hash_str.clone()));
+
                 user_mappings.insert(creds.username.clone(), hash_str.clone());
                 token_mappings.insert(hash_str, admin_task_creds.clone());
 
@@ -625,7 +640,7 @@ fn run() -> Result<()> {
         .mount("/", routes![
             index, get_file,
             login, get_users, get_default_creds, exchange, info,
-            add_mapping, delete_mapping, force_delete_mapping, update_mapping, force_update_mapping]).launch();
+            add_mapping, delete_mapping, force_delete_mappings, update_mapping, force_update_mapping]).launch();
 
     Ok(())
 }
