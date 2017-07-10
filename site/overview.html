@@ -48,9 +48,23 @@
 
       <div class="tab-content">
         <div class="tab-pane active" id="info" role="tabpanel">
-          <li v-for="(key, value) in adminTaskCreds">
+          <table class="table table-striped">
+            <thead class="thead-default">
+              <tr>
+                <td>Operation</td>
+                <td>Allowed?</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(value, key) in adminTaskCreds">
+                <td>{{key}}</td>
+                <td>{{value}}</td>
+              </tr>
+            </tbody>
+          <!--<li v-for="(value, key) in adminTaskCreds">
             {{key}}: {{value}}
-          </li>
+          </li>-->
+          </table>
         </div>
         <div class="tab-pane" id="add" role="tabpanel">...</div>
         <div class="tab-pane" id="update" role="tabpanel">...</div>
