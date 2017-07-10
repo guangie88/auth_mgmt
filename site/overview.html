@@ -51,8 +51,8 @@
           <table class="table table-striped">
             <thead class="thead-default">
               <tr>
-                <td>Operation</td>
-                <td>Allowed?</td>
+                <th>Operation</th>
+                <th>Allowed?</th>
               </tr>
             </thead>
             <tbody>
@@ -61,14 +61,28 @@
                 <td>{{value}}</td>
               </tr>
             </tbody>
-          <!--<li v-for="(value, key) in adminTaskCreds">
-            {{key}}: {{value}}
-          </li>-->
           </table>
         </div>
-        <div class="tab-pane" id="add" role="tabpanel">...</div>
-        <div class="tab-pane" id="update" role="tabpanel">...</div>
-        <div class="tab-pane" id="delete" role="tabpanel">...</div>
+        <div class="tab-pane" id="add" role="tabpanel">
+          Need to change a standard user role from get request.
+        </div>
+        <div class="tab-pane" id="update" role="tabpanel">
+          Need to select user from list and key in password, to exchange for permissions and later update back.
+        </div>
+        <div class="tab-pane" id="delete" role="tabpanel">
+          <table class="table table-striped">
+            <thead class="thead-default">
+              <tr>
+                <th>Users</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="user in users">
+                <td>{{user}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!--<div id="app">

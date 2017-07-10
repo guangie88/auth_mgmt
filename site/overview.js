@@ -9,6 +9,7 @@ const Main = new Vue({
 
   data: {
     adminTaskCreds: '[not ready]',
+    users: [],
 
     logout() {
       this.$cookies.remove('token', '/', window.location.hostname);
@@ -38,10 +39,18 @@ const Main = new Vue({
   mounted() {
     axios.get('/info')
       .then(resp => {
-        if (resp.data.status == "ok") {
+        if (resp.data.status == 'ok') {
           this.adminTaskCreds = resp.data.data;
         } else {
           this.adminTaskCreds = resp.data.status;
+        }
+      })
+      .catch(error => alert(JSON.stringify(error)));
+
+    axios.get('/getusers')
+      .then(resp => {
+        if (resp.data.status == 'ok') {
+          this.users = resp.data.data;
         }
       })
       .catch(error => alert(JSON.stringify(error)));

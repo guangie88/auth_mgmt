@@ -463,6 +463,16 @@ fn exchange(auth_mgmt: State<MAuthMgmt>, creds: JSON<Credentials>) -> JSON<RespS
     }
 }
 
+#[get("/getusers")]
+fn get_users(auth_mgmt: State<MAuthMgmt>) -> JSON<RespStatusWithData<Vec<String>>> {
+    let auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
+    
+    JSON(RespStatusWithData::ok(auth_mgmt.get_keys()
+        .into_iter()
+        .cloned()
+        .collect()))
+}
+
 #[get("/site/<path..>")]
 fn get_file(config: State<MainConfig>, path: PathBuf) -> StdResult<NamedFile, IoError> {
     NamedFile::open(Path::new(&config.site_path).join(path))
@@ -571,7 +581,7 @@ fn run() -> Result<()> {
         .manage(Mutex::new((UserMappings::new(), TokenMappings::new())))
         .mount("/", routes![
             index, get_file,
-            login, exchange, info,
+            login, get_users, exchange, info,
             add_mapping, delete_mapping, force_delete_mapping, update_mapping, force_update_mapping]).launch();
 
     Ok(())
