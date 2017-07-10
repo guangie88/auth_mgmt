@@ -31,7 +31,7 @@ extern crate structopt;
 extern crate structopt_derive;
 
 use auth::auth::AuthMgmt;
-use rmp_serde::Deserializer;
+use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 use filebuffer::FileBuffer;
 use ring::{digest, pbkdf2};
@@ -57,7 +57,7 @@ const RESP_INVALID_TOKEN: &'static str = "invalid token";
 const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
 const RESP_NO_SUCH_CREDENTIALS: &'static str = "no such credentials";
 const RESP_NOT_ALLOWED: &'static str = "not allowed";
-const RESP_UNABLE_TO_CONVERT_TO_JSON: &'static str = "unable to convert to JSON";
+const RESP_UNABLE_TO_CONVERT_TO_MSGPACK: &'static str = "unable to convert to msgpack";
 const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
 const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
 const RESP_UNABLE_TO_WRITE_FILE: &'static str = "unable to write file";
@@ -96,7 +96,7 @@ where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
     }
 }
 
-#[derive(Debug, Clone, FromForm, PartialEq, Deserialize, Serialize)]
+#[derive(Default, Debug, Clone, FromForm, PartialEq, Deserialize, Serialize)]
 struct Credentials {
     username: String,
     password: String,
@@ -131,7 +131,7 @@ struct OxxxAdminTaskCredentials {
     oxxx_tasks_read: bool,
     oxxx_tasks_schema_read: bool,
     oxxx_ref_lxx_read: bool,
-    oxxx_red_lxx_update: bool,
+    oxxx_ref_lxx_update: bool,
 
     // ImbuedPayload
     #[serde(skip_serializing_if="Option::is_none")]
@@ -142,6 +142,42 @@ struct OxxxAdminTaskCredentials {
     update_users: Option<bool>,
     #[serde(skip_serializing_if="Option::is_none")]
     delete_users: Option<bool>,
+}
+
+impl Default for OxxxAdminTaskCredentials {
+    fn default() -> Self {
+        OxxxAdminTaskCredentials {
+            admin_credentials: Some(Credentials::default()),
+            sensor_id: String::new(),
+
+            start: false,
+            stop: false,
+            shutdown: false,
+            erase: false,
+            config_read: false,
+            config_update: false,
+            initiated_bit: false,
+            continuous_bit: true,
+            explore: true,
+
+            verify_oxxx_nxxs: true,
+            import_oxxx_nxxs: true,
+            export_oxxx_nxxs: true,
+            oxxx_nxxs_read: true,
+            oxxx_nxxs_schema_read: true,
+            oxxx_nxxs_update: true,
+            oxxx_nxxs_delete: true,
+            oxxx_tasks_read: true,
+            oxxx_tasks_schema_read: true,
+            oxxx_ref_lxx_read: true,
+            oxxx_ref_lxx_update: true,
+
+            get_users: Some(false),
+            add_users: Some(false),
+            update_users: Some(false),
+            delete_users: Some(false),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -190,7 +226,7 @@ struct E2AdminTaskCredentials {
     oxxx_tasks_read: bool,
     oxxx_tasks_schema_read: bool,
     oxxx_ref_lxx_read: bool,
-    oxxx_red_lxx_update: bool,
+    oxxx_ref_lxx_update: bool,
 
     // ImbuedPayload
     #[serde(skip_serializing_if="Option::is_none")]
@@ -243,7 +279,7 @@ type MAuthMgmt = Mutex<AuthMgmt>;
 type MMappings = Mutex<(UserMappings, TokenMappings)>;
 type StdResult<T, E> = std::result::Result<T, E>;
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
 struct UserPwCreds {
     username: String,
     password: String,
@@ -303,8 +339,10 @@ fn compress_opt_bool(opt: Option<bool>) -> bool {
 }
 
 fn write_auth_to_file(auth_mgmt: &AuthMgmt, config: &MainConfig) -> JSON<RespStatus> {
-    let auth_mgmt_str = json_res!(serde_json::to_string(auth_mgmt), RESP_UNABLE_TO_CONVERT_TO_JSON);
-    json_res!(file::put(&config.auth_bin_path, auth_mgmt_str.as_bytes()), RESP_UNABLE_TO_WRITE_FILE);
+    let mut buf = Vec::new();
+    json_res!(auth_mgmt.serialize(&mut Serializer::new(&mut buf)), RESP_UNABLE_TO_CONVERT_TO_MSGPACK);
+    
+    json_res!(file::put(&config.auth_bin_path, &buf), RESP_UNABLE_TO_WRITE_FILE);
     JSON(RespStatus::new(RESP_OK.to_owned()))
 }
 
@@ -463,7 +501,7 @@ fn exchange(auth_mgmt: State<MAuthMgmt>, creds: JSON<Credentials>) -> JSON<RespS
     }
 }
 
-#[get("/getusers")]
+#[get("/get_users")]
 fn get_users(auth_mgmt: State<MAuthMgmt>) -> JSON<RespStatusWithData<Vec<String>>> {
     let auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
     
@@ -471,6 +509,11 @@ fn get_users(auth_mgmt: State<MAuthMgmt>) -> JSON<RespStatusWithData<Vec<String>
         .into_iter()
         .cloned()
         .collect()))
+}
+
+#[get("/get_default_creds")]
+fn get_default_creds() -> JSON<RespStatusWithData<UserPwCreds>> {
+    JSON(RespStatusWithData::ok(UserPwCreds::default()))
 }
 
 #[get("/site/<path..>")]
@@ -554,7 +597,7 @@ fn run() -> Result<()> {
                     oxxx_tasks_read: false,
                     oxxx_tasks_schema_read: false,
                     oxxx_ref_lxx_read: false,
-                    oxxx_red_lxx_update: false,
+                    oxxx_ref_lxx_update: false,
                     get_users: Some(true),
                     add_users: Some(true),
                     update_users: Some(true),
@@ -581,7 +624,7 @@ fn run() -> Result<()> {
         .manage(Mutex::new((UserMappings::new(), TokenMappings::new())))
         .mount("/", routes![
             index, get_file,
-            login, get_users, exchange, info,
+            login, get_users, get_default_creds, exchange, info,
             add_mapping, delete_mapping, force_delete_mapping, update_mapping, force_update_mapping]).launch();
 
     Ok(())

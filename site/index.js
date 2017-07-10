@@ -3,7 +3,7 @@ const router = new VueRouter({
   routes: [],
 });
 
-const Main = new Vue({
+const app = new Vue({
   router,
   el: '#app',
 

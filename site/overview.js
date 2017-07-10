@@ -1,20 +1,28 @@
-const router = new VueRouter({
-  mode: 'history',
-  routes: [],
-});
 
-const Main = new Vue({
-  router,
+const app = new Vue({
+  // router,
   el: '#app',
 
   data: {
-    adminTaskCreds: '[not ready]',
+    adminTaskCreds: null,
+    toAddCreds: null,
     users: [],
+    
+    addUser() {
+      axios.post('/add_mapping', this.toAddCreds)
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            window.location.reload();
+          } else {
+            alert(resp.data.status);
+          }
+        })
+        .catch(error => alert(JSON.stringify(error)));
+    },
 
     logout() {
       this.$cookies.remove('token', '/', window.location.hostname);
-      router.push('/');
-      router.go();
+      window.location.href = '/';
     },
 
     // tableData: [{
@@ -41,13 +49,18 @@ const Main = new Vue({
       .then(resp => {
         if (resp.data.status == 'ok') {
           this.adminTaskCreds = resp.data.data;
-        } else {
-          this.adminTaskCreds = resp.data.status;
         }
       })
       .catch(error => alert(JSON.stringify(error)));
 
-    axios.get('/getusers')
+    axios.get('/get_default_creds')
+      .then(resp => {
+        if (resp.data.status == 'ok') {
+          this.toAddCreds = resp.data.data;
+        }
+      })
+
+    axios.get('/get_users')
       .then(resp => {
         if (resp.data.status == 'ok') {
           this.users = resp.data.data;

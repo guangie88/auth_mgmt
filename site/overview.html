@@ -7,7 +7,6 @@
     <!-- Vue.js -->
     <script src="https://unpkg.com/vue"></script>
     <script src="https://unpkg.com/vue-cookies"></script>
-    <script src="https://unpkg.com/vue-router"></script>
     <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-default/index.css">
     <script src="https://unpkg.com/element-ui/lib/index.js"></script>
     <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/vue-smart-table/2.5.0/vue-smart-table.js"></script>-->
@@ -51,24 +50,79 @@
           <table class="table table-striped">
             <thead class="thead-default">
               <tr>
-                <th>Operation</th>
-                <th>Allowed?</th>
+                <th>Operation keys</th>
+                <th>Value</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(value, key) in adminTaskCreds">
                 <td>{{key}}</td>
-                <td>{{value}}</td>
+                <td>
+                  <!-- boolean -->
+                  <input v-if="typeof(value) === 'boolean'" type="checkbox" v-model="adminTaskCreds[key]" disabled>
+
+                  <!-- string -->
+                  <span v-else-if="typeof(value) === 'string'">{{value}}</span>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
+
         <div class="tab-pane" id="add" role="tabpanel">
-          Need to change a standard user role from get request.
+          <div v-if="toAddCreds !== null" class="form-horizontal">
+            <!-- actual login username and password -->
+            <div class="form-group">
+              <label for="outerUsername">Username:</label>
+              <input class="form-control" type="text" id="outerUsername" v-model="toAddCreds.username">
+            </div>
+
+            <div class="form-group">
+              <label for="outerPassword">Password:</label>
+              <input class="form-control" type="password" id="outerPassword" v-model="toAddCreds.password">
+            </div>
+
+            <table class="table table-striped">
+              <thead class="thead-default">
+                <tr>
+                  <th>Operation keys</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(value, key) in toAddCreds.creds">
+                  <td>{{key}}</td>
+                  <td>
+                    <div class="form-group">
+                    
+                      <!-- boolean -->      
+                      <input class="form-control" v-if="typeof(value) === 'boolean'" type="checkbox" v-model="toAddCreds.creds[key]">
+
+                      <!-- string -->
+                      <input class="form-control" v-else-if="typeof(value) === 'string'" type="text" v-model="toAddCreds.creds[key]">
+
+                      <!-- object -->
+                      <div v-else-if="value !== null && typeof(value) === 'object'">
+                        <div class="form-group" v-for="(innerValue, innerKey) in value">
+                          <label :for="innerKey">{{innerKey}}</label>
+                          <input v-if="innerKey === 'password'" class="form-control" type="password" :id="innerKey" v-model="value[innerKey]">
+                          <input v-else class="form-control" type="text" :id="innerKey" v-model="value[innerKey]">
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <button type="submit" class="btn btn-primary btn-block" @click="addUser()">Add user</button>
+          </div>
         </div>
+
         <div class="tab-pane" id="update" role="tabpanel">
           Need to select user from list and key in password, to exchange for permissions and later update back.
         </div>
+
         <div class="tab-pane" id="delete" role="tabpanel">
           <table class="table table-striped">
             <thead class="thead-default">
