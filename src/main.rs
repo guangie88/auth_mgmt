@@ -573,6 +573,11 @@ fn index(uri: &URI) -> Template {
     Template::render("index", &context)
 }
 
+#[get("/images/<path..>")]
+fn get_images(path: PathBuf) -> StdResult<NamedFile, IoError> {
+    NamedFile::open(Path::new("images").join(path))
+}
+
 #[get("/js/<path..>")]
 fn get_js(path: PathBuf) -> StdResult<NamedFile, IoError> {
     NamedFile::open(Path::new("js").join(path))
@@ -592,9 +597,6 @@ struct MainConfig {
 
     #[structopt(short = "b", long = "auth-bin", help = "Authentication BIN file path")]
     auth_bin_path: String,
-
-    #[structopt(short = "s", long = "site-path", help = "Site root path of HTTP hosting", default_value = "site")]
-    site_path: String,
 }
 
 use errors::*;
@@ -676,7 +678,7 @@ fn run() -> Result<()> {
         .manage(Mutex::new((UserMappings::new(), TokenMappings::new())))
         .attach(Template::fairing())
         .mount("/", routes![
-            index, overview, get_js,
+            index, overview, get_images, get_js,
             login, get_users, get_default_creds, exchange, info,
             add_mapping, delete_mapping, force_delete_mappings, update_mapping, force_update_mapping]).launch();
 

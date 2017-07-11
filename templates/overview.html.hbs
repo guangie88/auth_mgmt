@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>SSF Authentication Management Overview</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
 
     <!-- Vue.js -->
     <script src="https://unpkg.com/vue"></script>
@@ -122,7 +122,88 @@
         </div>
 
         <div class="tab-pane" id="update" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.updateUsers">
-          Need to select user from list and key in password, to exchange for permissions and later update back.
+          <div class="form-horizontal">
+            <div id="accordion" role="tablist" aria-multiselectable="true">
+              <!-- top -->
+              <div class="card">
+                <div class="card-header" role="tab" id="headingOne">
+                  <h5 class="mb-0">
+                    <a data-toggle="collapse" data-parent="#accordion" href="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                      Selected User Credentials
+                    </a>
+                  </h5>
+                </div>
+              </div>
+
+              <div id="collapseOne" class="collapse show" role="tabpanel" aria-labelledby="headingOne">
+                <div class="card-block">
+                  <div class="form-group">
+                    <label for="selectedUpdateUser">User to update:</label>
+                    <select id="selectedUpdateUser" class="form-control custom-select" v-model="selectedUpdate.username">
+                      <option v-for="toUpdateUser in toUpdateUsers" v-text="toUpdateUser.username"></option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="selectedUpdatePassword">Password:</label>
+                    <input class="form-control" type="password" id="selectedUpdatePassword" v-model="selectedUpdate.password">
+                  </div>
+
+                  <button class="btn btn-primary btn-block" @click="exchange()">Retrieve user permissions</button>
+                </div>
+              </div>
+
+              <!-- bottom -->
+              <div class="card" v-if="selectedExchange !== null">
+                <div class="card-header" role="tab" id="headingTwo">
+                  <h5 class="mb-0">
+                    <a data-toggle="collapse" data-parent="#accordion" href="#collapseTwo" aria-expanded="true" aria-controls="collapseTwo">
+                      Update Details
+                    </a>
+                  </h5>
+                </div>
+
+                <div id="collapseTwo" class="collapse show" role="tabpanel" aria-labelledby="headingTwo">
+                  <div class="card-block">
+                    <table class="table table-striped">
+                      <thead class="thead-default">
+                        <tr>
+                          <th>Operation keys</th>
+                          <th>Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(value, key) in selectedExchange">
+                          <td><span v-text="key"></td>
+                          <td>
+                            <div class="form-group">
+                            
+                              <!-- boolean -->      
+                              <input class="form-control" v-if="typeof(value) === 'boolean'" type="checkbox" v-model="selectedExchange[key]">
+
+                              <!-- string -->
+                              <input class="form-control" v-else-if="typeof(value) === 'string'" type="text" v-model="selectedExchange[key]">
+
+                              <!-- object -->
+                              <div v-else-if="value !== null && typeof(value) === 'object'">
+                                <div class="form-group" v-for="(innerValue, innerKey) in value">
+                                  <label :for="innerKey" v-text="innerKey"></label>
+                                  <input v-if="innerKey === 'password'" class="form-control" type="password" :id="innerKey" v-model="value[innerKey]">
+                                  <input v-else class="form-control" type="text" :id="innerKey" v-model="value[innerKey]">
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <button class="btn btn-primary btn-block" @click="updateUser()">Update user permissions</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="tab-pane" id="delete" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.deleteUsers">
