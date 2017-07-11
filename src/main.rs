@@ -2,6 +2,7 @@
 #![plugin(rocket_codegen)]
 
 extern crate auth;
+extern crate bidir_map;
 
 #[macro_use]
 extern crate derive_new;
@@ -31,6 +32,7 @@ extern crate structopt;
 extern crate structopt_derive;
 
 use auth::auth::AuthMgmt;
+use bidir_map::BidirMap;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 use filebuffer::FileBuffer;
@@ -280,7 +282,7 @@ type Token = String;
 
 type AdminTaskCredentials = OxxxAdminTaskCredentials;
 type IoError = std::io::Error;
-type UserMappings = HashMap<User, Token>;
+type UserMappings = BidirMap<User, Token>;
 type TokenMappings = HashMap<Token, AdminTaskCredentials>;
 type MAuthMgmt = Mutex<AuthMgmt>;
 type MMappings = Mutex<(UserMappings, TokenMappings)>;
@@ -387,11 +389,11 @@ fn generic_delete_mapping_impl<T, E, F>(auth_mgmt: &State<MAuthMgmt>, config: &S
 
     // remove the login mappings if available
     // need to clone to prevent shared and mutable borrow
-    let logged_token = user_mappings.get(username).cloned();
+    let logged_token = user_mappings.get_by_first(username).cloned();
 
     if let Some(logged_token) = logged_token {
         let _ = token_mappings.remove(&logged_token);
-        let _ = user_mappings.remove(username);
+        let _ = user_mappings.remove_by_first(username);
     }
 
     write_auth_to_file(&*auth_mgmt, &*config)
