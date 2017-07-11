@@ -39,10 +39,11 @@ use filebuffer::FileBuffer;
 use ring::{digest, pbkdf2};
 use rocket::config::{Config, Environment};
 use rocket::http::{Cookie, Cookies};
+use rocket::http::uri::URI;
 use rocket::request::Form;
-use rocket::response::{Flash, NamedFile, Redirect};
+use rocket::response::{NamedFile, Redirect};
 use rocket::State;
-use rocket_contrib::JSON;
+use rocket_contrib::{JSON, Template};
 use serialize::hex::ToHex;
 use std::collections::HashMap;
 use std::fs;
@@ -52,7 +53,6 @@ use std::sync::Mutex;
 use structopt::StructOpt;
 
 // constants
-const USERNAME_NAME: &'static str = "username";
 const TOKEN_NAME: &'static str = "token";
 
 const RESP_OK: &'static str = "ok";
@@ -65,9 +65,8 @@ const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
 const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
 const RESP_UNABLE_TO_WRITE_FILE: &'static str = "unable to write file";
 
-const INDEX_FILENAME: &'static str = "index.html";
-const WEB_INDEX_PATH: &'static str = "/site/index.html";
-const WEB_OVERVIEW_PATH: &'static str = "/site/overview.html";
+const WEB_INDEX_PATH: &'static str = "/";
+const WEB_OVERVIEW_PATH: &'static str = "/overview";
 
 #[derive(new, Debug, PartialEq, Deserialize, Serialize)]
 struct RespStatus {
@@ -248,6 +247,23 @@ struct E2AdminTaskCredentials {
     delete_users: Option<bool>,
 }
 
+#[derive(new, Debug, Serialize)]
+struct IndexTemplateContext {
+    fail: bool,
+}
+
+#[derive(new, Debug, Serialize)]
+struct OverviewTemplateContext {
+    username: String,
+}
+
+#[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
+struct UserPwCreds {
+    username: String,
+    password: String,
+    creds: AdminTaskCredentials,
+}
+
 mod errors {
     error_chain! {
         errors {
@@ -287,13 +303,6 @@ type TokenMappings = HashMap<Token, AdminTaskCredentials>;
 type MAuthMgmt = Mutex<AuthMgmt>;
 type MMappings = Mutex<(UserMappings, TokenMappings)>;
 type StdResult<T, E> = std::result::Result<T, E>;
-
-#[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
-struct UserPwCreds {
-    username: String,
-    password: String,
-    creds: AdminTaskCredentials,
-}
 
 macro_rules! json_opt {
     ($r:expr, $s:expr) => {
@@ -468,12 +477,12 @@ fn generate_hash(creds: &Credentials) -> String {
 }
 
 #[post("/login", data = "<creds>")]
-fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, creds: Form<Credentials>) -> StdResult<Redirect, Flash<Redirect>> {
+fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, creds: Form<Credentials>) -> StdResult<Redirect, Redirect> {
     let creds = creds.get();
     let admin_task_creds = login_exchange_impl(&auth_mgmt, creds);
 
     let admin_task_creds = admin_task_creds.map_err(|_| {
-        Flash::error(Redirect::to(&format!("{}?failed=true", WEB_INDEX_PATH)), "Invalid credentials provided.")
+        Redirect::to(&format!("{}?fail", WEB_INDEX_PATH))
     });
 
     admin_task_creds.and_then(|admin_task_creds| {
@@ -484,8 +493,6 @@ fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: C
 
                 // generate the hash string
                 let hash_str = generate_hash(creds);
-
-                cookies.add(Cookie::new(USERNAME_NAME.to_owned(), creds.username.clone()));
                 cookies.add(Cookie::new(TOKEN_NAME.to_owned(), hash_str.clone()));
 
                 user_mappings.insert(creds.username.clone(), hash_str.clone());
@@ -494,9 +501,8 @@ fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: C
                 Ok(Redirect::to(WEB_OVERVIEW_PATH))
             },
             Err(_) => {
-                const ERR_MSG: &'static str = "Server error, unable to obtain mutex for credentials mapping.";
-                error!("{}", ERR_MSG);
-                Err(Flash::error(Redirect::to(WEB_INDEX_PATH), ERR_MSG))
+                error!("Server error, unable to obtain mutex for credentials mapping.");
+                Err(Redirect::to(WEB_INDEX_PATH))
             },
         }
     })
@@ -533,14 +539,43 @@ fn get_default_creds() -> JSON<RespStatusWithData<UserPwCreds>> {
     JSON(RespStatusWithData::ok(UserPwCreds::default()))
 }
 
-#[get("/site/<path..>")]
-fn get_file(config: State<MainConfig>, path: PathBuf) -> StdResult<NamedFile, IoError> {
-    NamedFile::open(Path::new(&config.site_path).join(path))
+#[get("/overview")]
+fn overview(mappings: State<MMappings>, cookies: Cookies) -> StdResult<Template, Redirect> {
+    let token = cookies.get(TOKEN_NAME)
+        .ok_or_else(|| Redirect::to(&format!("{}?fail", WEB_INDEX_PATH)))?;
+
+    let redirect = Redirect::to(&format!("{}", WEB_INDEX_PATH));
+
+    let mappings = match mappings.lock() {
+        Ok(mappings) => mappings,
+        Err(_) => return Err(redirect),
+    };
+
+    let (ref user_mappings, _) = *mappings;
+
+    let username = user_mappings.get_by_second(token.value())
+        .ok_or_else(|| redirect)?;
+
+    let context = OverviewTemplateContext::new(username.to_owned());
+    Ok(Template::render("overview", &context))
 }
 
 #[get("/")]
-fn index(config: State<MainConfig>) -> StdResult<NamedFile, IoError> {
-    NamedFile::open(Path::new(&config.site_path).join(INDEX_FILENAME))
+fn index(uri: &URI) -> Template {
+    let query = uri.query();
+
+    let fail = match query {
+        Some("fail") => true,
+        _ => false,
+    };
+
+    let context = IndexTemplateContext::new(fail);
+    Template::render("index", &context)
+}
+
+#[get("/js/<path..>")]
+fn get_js(path: PathBuf) -> StdResult<NamedFile, IoError> {
+    NamedFile::open(Path::new("js").join(path))
 }
 
 #[derive(StructOpt, Debug)]
@@ -639,8 +674,9 @@ fn run() -> Result<()> {
         .manage(config)
         .manage(Mutex::new(auth_mgmt))
         .manage(Mutex::new((UserMappings::new(), TokenMappings::new())))
+        .attach(Template::fairing())
         .mount("/", routes![
-            index, get_file,
+            index, overview, get_js,
             login, get_users, get_default_creds, exchange, info,
             add_mapping, delete_mapping, force_delete_mappings, update_mapping, force_update_mapping]).launch();
 

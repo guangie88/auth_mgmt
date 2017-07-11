@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>SSF Authentication Management Login</title>
-    <link rel="icon" type="image/x-icon" href="/site/favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
 
     <!-- Vue.js -->
     <script src="https://unpkg.com/vue"></script>
@@ -20,7 +20,7 @@
     <div id="app" class="container">
       <h1>SSF Authentication Management Login</h1>
 
-      <div v-if="hasFailedLogin" class="alert alert-danger" role="alert">
+      <div v-if="{{fail}}" class="alert alert-danger" role="alert">
         <strong>Invalid credentials provided!</strong>
       </div>
 
@@ -40,6 +40,6 @@
     </div>
 
     <!-- must be placed after all the templates -->
-    <script src="/site/index.js"></script>
+    <script src="/js/index.js"></script>
   </body>
 </html>

@@ -5,7 +5,6 @@ const app = new Vue({
 
   data: {
     adminTaskCreds: null,
-    currentUsername: null,
     toAddCreds: null,
     toDeleteUsers: null,
     users: [],
@@ -39,16 +38,12 @@ const app = new Vue({
     },
 
     logout() {
-      this.$cookies.remove('username', '/', window.location.hostname);
       this.$cookies.remove('token', '/', window.location.hostname);
-
       window.location.href = '/';
     },
   },
 
   mounted() {
-    this.currentUsername = this.$cookies.get('username');
-
     axios.get('/info')
       .then(resp => {
         if (resp.data.status == 'ok') {

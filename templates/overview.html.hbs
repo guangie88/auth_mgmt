@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>SSF Authentication Management Overview</title>
-    <link rel="icon" type="image/x-icon" href="/site/favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
 
     <!-- Vue.js -->
     <script src="https://unpkg.com/vue"></script>
@@ -27,7 +27,7 @@
     <div id="app" class="container">
       <h1>SSF Authentication Management Overview</h1>
 
-      <p>Current username: <b>{{currentUsername}}</b></p>
+      <p>Current username: <b>{{username}}</b></p>
 
       <ul class="nav nav-tabs nav-fill">
         <li class="nav-item">
@@ -58,13 +58,13 @@
             </thead>
             <tbody>
               <tr v-for="(value, key) in adminTaskCreds">
-                <td>{{key}}</td>
+                <td><span v-text="key"></span></td>
                 <td>
                   <!-- boolean -->
                   <input v-if="typeof(value) === 'boolean'" type="checkbox" v-model="adminTaskCreds[key]" disabled>
 
                   <!-- string -->
-                  <span v-else-if="typeof(value) === 'string'">{{value}}</span>
+                  <span v-else-if="typeof(value) === 'string'" v-text="value"></span>
                 </td>
               </tr>
             </tbody>
@@ -93,7 +93,7 @@
               </thead>
               <tbody>
                 <tr v-for="(value, key) in toAddCreds.creds">
-                  <td>{{key}}</td>
+                  <td><span v-text="key"></td>
                   <td>
                     <div class="form-group">
                     
@@ -106,7 +106,7 @@
                       <!-- object -->
                       <div v-else-if="value !== null && typeof(value) === 'object'">
                         <div class="form-group" v-for="(innerValue, innerKey) in value">
-                          <label :for="innerKey">{{innerKey}}</label>
+                          <label :for="innerKey" v-text="innerKey"></label>
                           <input v-if="innerKey === 'password'" class="form-control" type="password" :id="innerKey" v-model="value[innerKey]">
                           <input v-else class="form-control" type="text" :id="innerKey" v-model="value[innerKey]">
                         </div>
@@ -135,7 +135,7 @@
             </thead>
             <tbody>
               <tr v-for="toDeleteUser in toDeleteUsers">
-                <td>{{toDeleteUser.username}}</td>
+                <td><span v-text="toDeleteUser.username"></span></td>
                 <td><input type="checkbox" v-model="toDeleteUser.delete"></td>
               </tr>
             </tbody>
@@ -147,6 +147,6 @@
     </div>
 
     <!-- must be placed after all the templates -->
-    <script src="/site/overview.js"></script>
+    <script src="/js/overview.js"></script>
   </body>
 </html>
