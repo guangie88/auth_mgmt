@@ -1,0 +1,32 @@
+.alert-no-margin {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.display-table {
+    display: table;
+}
+
+.display-table-cell {
+    display: table-cell;
+}
+
+.valign-middle {
+    vertical-align: middle;
+}
+
+.vspacer {
+    margin-top: 1em;
+}
+
+.logo-big {
+    max-height: 200px;
+    max-width: 200px;
+    margin-right: 2em;
+}
+
+.logo-small {
+    max-height: 150px;
+    max-width: 150px;
+    margin-right: 1em;
+}

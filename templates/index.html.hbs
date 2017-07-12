@@ -15,10 +15,18 @@
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha256-k2WSCIexGzOj3Euiig+TlR8gA0EmPjuc79OEeY5L45g=" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+
+    <!-- self css -->
+    <link rel="stylesheet" href="/css/app.css">
   </head>
   <body>
     <div id="app" class="container">
-      <h1>SSF Authentication Management Login</h1>
+      <div class="display-table">
+        <img class="display-table-cell valign-middle logo-big" src="/images/favicon.ico">
+        <div class="display-4 display-table-cell valign-middle">SSF Auth Management Login</div>
+      </div>
+
+      <div class="vspacer"></div>
 
       <div v-if="{{fail}}" class="alert alert-danger" role="alert">
         <strong>Invalid credentials provided!</strong>

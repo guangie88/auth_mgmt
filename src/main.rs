@@ -583,6 +583,11 @@ fn get_js(path: PathBuf) -> StdResult<NamedFile, IoError> {
     NamedFile::open(Path::new("js").join(path))
 }
 
+#[get("/css/<path..>")]
+fn get_css(path: PathBuf) -> StdResult<NamedFile, IoError> {
+    NamedFile::open(Path::new("css").join(path))
+}
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Authentication Management", about = "Program to perform authentication management.")]
 struct MainConfig {
@@ -678,7 +683,7 @@ fn run() -> Result<()> {
         .manage(Mutex::new((UserMappings::new(), TokenMappings::new())))
         .attach(Template::fairing())
         .mount("/", routes![
-            index, overview, get_images, get_js,
+            index, overview, get_images, get_js, get_css,
             login, get_users, get_default_creds, exchange, info,
             add_mapping, delete_mapping, force_delete_mappings, update_mapping, force_update_mapping]).launch();
 

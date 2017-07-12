@@ -1,9 +1,15 @@
+String.prototype.capitalize = function() {
+  return this.charAt(0).toUpperCase() + this.slice(1);
+}
+
+const catchFn = error => alert(JSON.stringify(error, null, 2));
 
 const app = new Vue({
   // router,
   el: '#app',
 
   data: {
+    // models
     adminTaskCreds: null,
     selectedExchange: null,
     selectedUpdate: { username: null, password: null },
@@ -11,6 +17,11 @@ const app = new Vue({
     toDeleteUsers: null,
     toUpdateUsers: null,
     users: [],
+
+    // models for error
+    errorAddMsg: null,
+    errorDeleteMsg: null,
+    errorUpdateMsg: null,
     
     addUser() {
       axios.post('/add_mapping', this.toAddCreds)
@@ -18,10 +29,42 @@ const app = new Vue({
           if (resp.data.status == 'ok') {
             window.location.reload();
           } else {
-            alert(resp.data.status);
+            this.errorAddMsg = 'Add user error: ' + resp.data.status;
           }
         })
-        .catch(error => alert(JSON.stringify(error)));
+        .catch(catchFn);
+    },
+
+    exchange() {
+      axios.post('/exchange', this.selectedUpdate)
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            this.selectedExchange = resp.data.data;
+            this.errorUpdateMsg = null;
+          } else {
+            this.errorUpdateMsg = 'Invalid retrieval: ' + resp.data.status;
+            this.selectedExchange = null;
+          }
+        })
+        .catch(catchFn);
+    },
+
+    updateUser() {
+      const toUpdateUser = {
+        username: this.selectedUpdate.username,
+        password: this.selectedUpdate.password,
+        creds: this.selectedExchange,
+      };
+
+      axios.put('/update_mapping', toUpdateUser)
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            window.location.reload();
+          } else {
+            this.errorUpdateMsg = 'Update error: ' + resp.data.status;
+          }
+        })
+        .catch(catchFn);
     },
 
     deleteUsers() {
@@ -34,31 +77,15 @@ const app = new Vue({
           if (resp.data.status == 'ok') {
             window.location.reload();
           } else {
-            alert(resp.data.status);
+            this.errorDeleteMsg = 'Delete user(s) error: ' + resp.data.status;
           }
         })
-        .catch(error => alert(JSON.stringify(error)));
-    },
-
-    exchange() {
-      axios.post('/exchange', this.selectedUpdate)
-        .then(resp => {
-          if (resp.data.status == 'ok') {
-            this.selectedExchange = resp.data.data;
-          } else {
-            alert(resp.data.status);
-          }
-        })
-        .catch(error => alert(JSON.stringify(error)));
+        .catch(catchFn);
     },
 
     logout() {
       this.$cookies.remove('token', '/', window.location.hostname);
       window.location.href = '/';
-    },
-
-    updateUser() {
-
     },
   },
 
@@ -69,7 +96,7 @@ const app = new Vue({
           this.adminTaskCreds = resp.data.data;
         }
       })
-      .catch(error => alert(JSON.stringify(error)));
+      .catch(catchFn);
 
     axios.get('/get_default_creds')
       .then(resp => {
@@ -92,6 +119,6 @@ const app = new Vue({
           });
         }
       })
-      .catch(error => alert(JSON.stringify(error)));
+      .catch(catchFn);
   },
 });
