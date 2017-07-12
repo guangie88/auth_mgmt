@@ -9,7 +9,6 @@
     <script src="https://unpkg.com/vue-cookies"></script>
     <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-default/index.css">
     <script src="https://unpkg.com/element-ui/lib/index.js"></script>
-    <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/vue-smart-table/2.5.0/vue-smart-table.js"></script>-->
 
     <!-- axios -->
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
@@ -133,23 +132,23 @@
                     </a>
                   </h5>
                 </div>
-              </div>
 
-              <div id="collapseOne" class="collapse show" role="tabpanel" aria-labelledby="headingOne">
-                <div class="card-block">
-                  <div class="form-group">
-                    <label for="selectedUpdateUser">User to update:</label>
-                    <select id="selectedUpdateUser" class="form-control custom-select" v-model="selectedUpdate.username">
-                      <option v-for="toUpdateUser in toUpdateUsers" v-text="toUpdateUser.username"></option>
-                    </select>
+                <div id="collapseOne" class="collapse show" role="tabpanel" aria-labelledby="headingOne">
+                  <div class="card-block">
+                    <div class="form-group">
+                      <label for="selectedUpdateUser">User to update:</label>
+                      <select id="selectedUpdateUser" class="form-control custom-select" v-model="selectedUpdate.username">
+                        <option v-for="toUpdateUser in toUpdateUsers" v-text="toUpdateUser.username"></option>
+                      </select>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="selectedUpdatePassword">Password:</label>
+                      <input class="form-control" type="password" id="selectedUpdatePassword" v-model="selectedUpdate.password">
+                    </div>
+
+                    <button class="btn btn-primary btn-block" @click="exchange()">Retrieve user permissions</button>
                   </div>
-
-                  <div class="form-group">
-                    <label for="selectedUpdatePassword">Password:</label>
-                    <input class="form-control" type="password" id="selectedUpdatePassword" v-model="selectedUpdate.password">
-                  </div>
-
-                  <button class="btn btn-primary btn-block" @click="exchange()">Retrieve user permissions</button>
                 </div>
               </div>
 
