@@ -7,17 +7,7 @@ use std::sync::Mutex;
 
 // constants
 pub const TOKEN_NAME: &'static str = "token";
-
 pub const RESP_OK: &'static str = "ok";
-pub const RESP_INVALID_TOKEN: &'static str = "invalid token";
-pub const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
-pub const RESP_NO_SUCH_CREDENTIALS: &'static str = "no such credentials";
-pub const RESP_NOT_ALLOWED: &'static str = "not allowed";
-pub const RESP_UNABLE_TO_CONVERT_TO_MSGPACK: &'static str = "unable to convert to msgpack";
-pub const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
-pub const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
-pub const RESP_UNABLE_TO_WRITE_FILE: &'static str = "unable to write file";
-
 pub const WEB_INDEX_PATH: &'static str = "/";
 pub const WEB_OVERVIEW_PATH: &'static str = "/overview";
 
@@ -179,6 +169,13 @@ where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
             data: Some(v),
         }
     }
+
+    pub fn err<S: Into<String>>(e: S) -> RespStatusWithData<T> {
+        RespStatusWithData {
+            status: e.into(),
+            data: None,
+        }
+    }
 }
 
 impl Default for OxxxAdminTaskCredentials {
@@ -271,12 +268,12 @@ pub mod errors {
     error_chain! {
         errors {
             AuthErr(e: String) {
-                description("authentication error")
-                display("authentication error: {}", e)
+                description("Authentication error")
+                display("Authentication error: {}", e)
             }
             SyncPoisonError(e: String) {
-                description("poison error")
-                display("poison error: {}", e)
+                description("Lock Poison error")
+                display("Lock Poison error: {}", e)
             }
         }
     }
@@ -294,8 +291,6 @@ impl<T> From<std::sync::PoisonError<T>> for errors::Error {
         Self::from_kind(errors::ErrorKind::SyncPoisonError(e.description().to_string()))
     }
 }
-
-
 
 // change between OxxxAdminTaskCredentials and E2AdminTaskCredentials
 pub type User = String;
