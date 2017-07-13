@@ -182,7 +182,7 @@ fn force_delete_mappings(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>,
 
 #[put("/update_mapping", data = "<user_pw_creds>")]
 fn update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
-    let (_, ref token_mappings) = *json_res!(mappings.lock(), RESP_UNABLE_TO_LOCK);
+    let (ref user_mappings, ref mut token_mappings) = *json_res!(mappings.lock(), RESP_UNABLE_TO_LOCK);
     let admin_task_creds = get_cred!(cookies, token_mappings);
     let update_users = compress_opt_bool(admin_task_creds.update_users);
 
@@ -192,6 +192,14 @@ fn update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappin
     // perform the actual update here
     let mut auth_mgmt = json_res!(auth_mgmt.lock(), RESP_UNABLE_TO_LOCK);
     json_res!(auth_mgmt.update(&user_pw_creds.username, &user_pw_creds.password, &user_pw_creds.creds), RESP_UNABLE_TO_PROCESS);
+
+    // may need to re-cache the mappings if the entry exists
+    let token = user_mappings.get_by_first(&user_pw_creds.username);
+
+    if let Some(token) = token {
+        // updates the updated payload
+        let _ = token_mappings.insert(token.to_owned(), user_pw_creds.creds.clone());
+    }
 
     // no need to change the login mappings because this operation ensures that the password remains the same
     write_auth_to_file(&*auth_mgmt, &*config)
