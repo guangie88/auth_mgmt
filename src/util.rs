@@ -90,9 +90,6 @@ pub struct OxxxAdminTaskCredentials {
 
     // ImbuedPayload
     #[serde(skip_serializing_if="Option::is_none")]
-    pub get_users: Option<bool>,
-
-    #[serde(skip_serializing_if="Option::is_none")]
     pub add_users: Option<bool>,
 
     #[serde(skip_serializing_if="Option::is_none")]
@@ -151,9 +148,6 @@ pub struct E2AdminTaskCredentials {
     pub oxxx_ref_lxx_update: bool,
 
     // ImbuedPayload
-    #[serde(skip_serializing_if="Option::is_none")]
-    pub get_users: Option<bool>,
-
     #[serde(skip_serializing_if="Option::is_none")]
     pub add_users: Option<bool>,
 
@@ -215,7 +209,6 @@ impl Default for OxxxAdminTaskCredentials {
             oxxx_ref_lxx_read: true,
             oxxx_ref_lxx_update: true,
 
-            get_users: Some(false),
             add_users: Some(false),
             update_users: Some(false),
             delete_users: Some(false),
@@ -267,7 +260,6 @@ impl Default for E2AdminTaskCredentials {
             oxxx_ref_lxx_read: true,
             oxxx_ref_lxx_update: true,
 
-            get_users: Some(false),
             add_users: Some(false),
             update_users: Some(false),
             delete_users: Some(false),

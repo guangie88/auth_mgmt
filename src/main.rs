@@ -393,7 +393,6 @@ fn run() -> errors::Result<()> {
 
             let add_res = auth_mgmt.add("admin".to_owned(), "admin".to_owned(),
                 &AdminTaskCredentials {
-                    get_users: Some(true),
                     add_users: Some(true),
                     update_users: Some(true),
                     delete_users: Some(true),
