@@ -20,13 +20,13 @@
 }
 
 .logo-big {
-    max-height: 200px;
-    max-width: 200px;
+    height: 200px;
+    width: 200px;
     margin-right: 2em;
 }
 
 .logo-small {
-    max-height: 150px;
-    max-width: 150px;
+    height: 150px;
+    width: 150px;
     margin-right: 1em;
 }

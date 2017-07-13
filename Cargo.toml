@@ -27,5 +27,5 @@ structopt = "=0.0.5"
 structopt-derive = "=0.0.5"
 
 [lib]
-name = "auth"
-path = "src/lib.rs"
+name = "auth_mgmt"
+path = "src/auth_mgmt/lib.rs"

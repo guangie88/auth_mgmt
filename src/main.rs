@@ -1,7 +1,7 @@
 #![feature(custom_derive, plugin, rustc_private)]
 #![plugin(rocket_codegen)]
 
-extern crate auth;
+extern crate auth_mgmt;
 extern crate bidir_map;
 
 #[macro_use]
@@ -31,8 +31,9 @@ extern crate structopt;
 #[macro_use]
 extern crate structopt_derive;
 
-use auth::auth::AuthMgmt;
-use bidir_map::BidirMap;
+mod util;
+
+use auth_mgmt::AuthMgmt;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 use filebuffer::FileBuffer;
@@ -45,264 +46,15 @@ use rocket::response::{NamedFile, Redirect};
 use rocket::State;
 use rocket_contrib::{JSON, Template};
 use serialize::hex::ToHex;
-use std::collections::HashMap;
+use std::io;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::Mutex;
 use structopt::StructOpt;
 
-// constants
-const TOKEN_NAME: &'static str = "token";
-
-const RESP_OK: &'static str = "ok";
-const RESP_INVALID_TOKEN: &'static str = "invalid token";
-const RESP_NO_SUCH_COOKIE: &'static str = "no such cookie";
-const RESP_NO_SUCH_CREDENTIALS: &'static str = "no such credentials";
-const RESP_NOT_ALLOWED: &'static str = "not allowed";
-const RESP_UNABLE_TO_CONVERT_TO_MSGPACK: &'static str = "unable to convert to msgpack";
-const RESP_UNABLE_TO_LOCK: &'static str = "unable to lock";
-const RESP_UNABLE_TO_PROCESS: &'static str = "unable to process";
-const RESP_UNABLE_TO_WRITE_FILE: &'static str = "unable to write file";
-
-const WEB_INDEX_PATH: &'static str = "/";
-const WEB_OVERVIEW_PATH: &'static str = "/overview";
-
-#[derive(new, Debug, PartialEq, Deserialize, Serialize)]
-struct RespStatus {
-    status: String,
-}
-
-#[derive(new, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(bound(deserialize = ""))]
-struct RespStatusWithData<T>
-where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
-    status: String,
-    data: Option<T>,
-}
-
-impl<T> From<RespStatus> for RespStatusWithData<T>
-where T: for<'de_inner> serde::Deserialize<'de_inner> + Serialize {
-    fn from(e: RespStatus) -> RespStatusWithData<T> {
-        RespStatusWithData::new(e.status, None)
-    }
-}
-
-impl RespStatus {
-    fn ok() -> RespStatus {
-        RespStatus { status: RESP_OK.to_owned(), }
-    }
-}
-
-impl<T> RespStatusWithData<T>
-where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
-    fn ok(v: T) -> RespStatusWithData<T> {
-        RespStatusWithData {
-            status: RESP_OK.to_owned(),
-            data: Some(v),
-        }
-    }
-}
-
-#[derive(Default, Debug, Clone, FromForm, PartialEq, Deserialize, Serialize)]
-struct Credentials {
-    username: String,
-    password: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OxxxAdminTaskCredentials {
-    #[serde(skip_serializing_if="Option::is_none")]
-    admin_credentials: Option<Credentials>,
-    sensor_id: String,
-
-    // CommonRoleFlags
-    start: bool,
-    stop: bool,
-    shutdown: bool,
-    erase: bool,
-    config_read: bool,
-    config_update: bool,
-    initiated_bit: bool,
-    continuous_bit: bool,
-    explore: bool,
-    
-    // OxxxOnlyRoleFlags
-    verify_oxxx_nxxs: bool,
-    import_oxxx_nxxs: bool,
-    export_oxxx_nxxs: bool,
-    oxxx_nxxs_read: bool,
-    oxxx_nxxs_schema_read: bool,
-    oxxx_nxxs_update: bool,
-    oxxx_nxxs_delete: bool,
-    oxxx_tasks_read: bool,
-    oxxx_tasks_schema_read: bool,
-    oxxx_ref_lxx_read: bool,
-    oxxx_ref_lxx_update: bool,
-
-    // ImbuedPayload
-    #[serde(skip_serializing_if="Option::is_none")]
-    get_users: Option<bool>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    add_users: Option<bool>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    update_users: Option<bool>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    delete_users: Option<bool>,
-}
-
-impl Default for OxxxAdminTaskCredentials {
-    fn default() -> Self {
-        OxxxAdminTaskCredentials {
-            admin_credentials: Some(Credentials::default()),
-            sensor_id: String::new(),
-
-            start: false,
-            stop: false,
-            shutdown: false,
-            erase: false,
-            config_read: false,
-            config_update: false,
-            initiated_bit: false,
-            continuous_bit: true,
-            explore: true,
-
-            verify_oxxx_nxxs: true,
-            import_oxxx_nxxs: true,
-            export_oxxx_nxxs: true,
-            oxxx_nxxs_read: true,
-            oxxx_nxxs_schema_read: true,
-            oxxx_nxxs_update: true,
-            oxxx_nxxs_delete: true,
-            oxxx_tasks_read: true,
-            oxxx_tasks_schema_read: true,
-            oxxx_ref_lxx_read: true,
-            oxxx_ref_lxx_update: true,
-
-            get_users: Some(false),
-            add_users: Some(false),
-            update_users: Some(false),
-            delete_users: Some(false),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct E2AdminTaskCredentials {
-    #[serde(skip_serializing_if="Option::is_none")]
-    admin_credentials: Option<Credentials>,
-    sensor_id: String,
-    fx_credentials: Credentials,
-
-    // CommonRoleFlags
-    start: bool,
-    stop: bool,
-    shutdown: bool,
-    erase: bool,
-    config_read: bool,
-    config_update: bool,
-    initiated_bit: bool,
-    continuous_bit: bool,
-    explore: bool,
-
-    // VxxOnlyRoleFlags
-    verify_vxx_nxxs: bool,
-    import_vxx_nxxs: bool,
-    export_vxx_nxxs: bool,
-    send_to_merge_nxx: bool,
-    send_to_rename_nxx: bool,
-    send_to_prioritize_nxx: bool,
-    vxx_nxxs_read: bool,
-    vxx_nxxs_update: bool,
-    vxx_nxxs_delete: bool,
-    vxx_tasks_read: bool,
-    recv_production_result: bool,
-    send_bxxxx_fxxxs: bool,
-    send_vvv_production_resubmit_request: bool,
-    send_ww_stxxxing_production_request: bool,
-    
-    // OxxxOnlyRoleFlags
-    verify_oxxx_nxxs: bool,
-    import_oxxx_nxxs: bool,
-    export_oxxx_nxxs: bool,
-    oxxx_nxxs_read: bool,
-    oxxx_nxxs_schema_read: bool,
-    oxxx_nxxs_update: bool,
-    oxxx_nxxs_delete: bool,
-    oxxx_tasks_read: bool,
-    oxxx_tasks_schema_read: bool,
-    oxxx_ref_lxx_read: bool,
-    oxxx_ref_lxx_update: bool,
-
-    // ImbuedPayload
-    #[serde(skip_serializing_if="Option::is_none")]
-    get_users: Option<bool>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    add_users: Option<bool>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    update_users: Option<bool>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    delete_users: Option<bool>,
-}
-
-#[derive(new, Debug, Serialize)]
-struct IndexTemplateContext {
-    fail: bool,
-}
-
-#[derive(new, Debug, Serialize)]
-struct OverviewTemplateContext {
-    username: String,
-}
-
-#[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
-struct UserPwCreds {
-    username: String,
-    password: String,
-    creds: AdminTaskCredentials,
-}
-
-mod errors {
-    error_chain! {
-        errors {
-            AuthErr(e: String) {
-                description("authentication error")
-                display("authentication error: {}", e)
-            }
-            SyncPoisonError(e: String) {
-                description("poison error")
-                display("poison error: {}", e)
-            }
-        }
-    }
-}
-
-impl From<auth::auth::AuthErr> for Error {
-    fn from(e: auth::auth::AuthErr) -> Self {
-        Self::from_kind(ErrorKind::AuthErr(format!("{:?}", e)))
-    }
-}
-
-impl<T> From<std::sync::PoisonError<T>> for Error {
-    fn from(e: std::sync::PoisonError<T>) -> Self {
-        use std::error::Error;
-        Self::from_kind(ErrorKind::SyncPoisonError(e.description().to_string()))
-    }
-}
-
-// change between OxxxAdminTaskCredentials and E2AdminTaskCredentials
-type User = String;
-type Token = String;
-
-type AdminTaskCredentials = OxxxAdminTaskCredentials;
-type IoError = std::io::Error;
-type UserMappings = BidirMap<User, Token>;
-type TokenMappings = HashMap<Token, AdminTaskCredentials>;
-type MAuthMgmt = Mutex<AuthMgmt>;
-type MMappings = Mutex<(UserMappings, TokenMappings)>;
-type StdResult<T, E> = std::result::Result<T, E>;
+use util::*;
+use errors::ResultExt;
 
 macro_rules! json_opt {
     ($r:expr, $s:expr) => {
@@ -382,7 +134,7 @@ fn add_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings:
 }
 
 fn generic_delete_mapping_impl<T, E, F>(auth_mgmt: &State<MAuthMgmt>, config: &State<MainConfig>, mappings: &State<MMappings>, cookies: &Cookies, username: &str, del_fn: F) -> JSON<RespStatus> 
-    where F: FnOnce(&mut AuthMgmt) -> StdResult<T, E> {
+    where F: FnOnce(&mut AuthMgmt) -> Result<T, E> {
 
     let (ref mut user_mappings, ref mut token_mappings) = *json_res!(mappings.lock(), RESP_UNABLE_TO_LOCK);
 
@@ -452,7 +204,7 @@ fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, 
     add_mapping(auth_mgmt, config, mappings, cookies, user_pw_creds)
 }
 
-fn login_exchange_impl(auth_mgmt: &State<MAuthMgmt>, creds: &Credentials) -> Result<AdminTaskCredentials> {
+fn login_exchange_impl(auth_mgmt: &State<MAuthMgmt>, creds: &Credentials) -> errors::Result<AdminTaskCredentials> {
     let auth_mgmt = auth_mgmt.lock()?;
     let admin_task_creds = auth_mgmt.exchange(&creds.username, &creds.password)?;
     Ok(admin_task_creds)
@@ -477,7 +229,7 @@ fn generate_hash(creds: &Credentials) -> String {
 }
 
 #[post("/login", data = "<creds>")]
-fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, creds: Form<Credentials>) -> StdResult<Redirect, Redirect> {
+fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, creds: Form<Credentials>) -> Result<Redirect, Redirect> {
     let creds = creds.get();
     let admin_task_creds = login_exchange_impl(&auth_mgmt, creds);
 
@@ -540,7 +292,7 @@ fn get_default_creds() -> JSON<RespStatusWithData<UserPwCreds>> {
 }
 
 #[get("/overview")]
-fn overview(mappings: State<MMappings>, cookies: Cookies) -> StdResult<Template, Redirect> {
+fn overview(mappings: State<MMappings>, cookies: Cookies) -> Result<Template, Redirect> {
     let token = cookies.get(TOKEN_NAME)
         .ok_or_else(|| Redirect::to(&format!("{}?fail", WEB_INDEX_PATH)))?;
 
@@ -574,17 +326,17 @@ fn index(uri: &URI) -> Template {
 }
 
 #[get("/images/<path..>")]
-fn get_images(path: PathBuf) -> StdResult<NamedFile, IoError> {
+fn get_images(path: PathBuf) -> Result<NamedFile, io::Error> {
     NamedFile::open(Path::new("images").join(path))
 }
 
 #[get("/js/<path..>")]
-fn get_js(path: PathBuf) -> StdResult<NamedFile, IoError> {
+fn get_js(path: PathBuf) -> Result<NamedFile, io::Error> {
     NamedFile::open(Path::new("js").join(path))
 }
 
 #[get("/css/<path..>")]
-fn get_css(path: PathBuf) -> StdResult<NamedFile, IoError> {
+fn get_css(path: PathBuf) -> Result<NamedFile, io::Error> {
     NamedFile::open(Path::new("css").join(path))
 }
 
@@ -604,9 +356,7 @@ struct MainConfig {
     auth_bin_path: String,
 }
 
-use errors::*;
-
-fn run() -> Result<()> {
+fn run() -> errors::Result<()> {
     let config = MainConfig::from_args();
 
     if let &Some(ref log_config_path) = &config.log_config_path {
@@ -635,32 +385,11 @@ fn run() -> Result<()> {
 
             let add_res = auth_mgmt.add("admin".to_owned(), "admin".to_owned(),
                 &AdminTaskCredentials {
-                    admin_credentials: None,
-                    sensor_id: "".to_owned(),
-                    start: false,
-                    stop: false,
-                    shutdown: false,
-                    erase: false,
-                    config_read: false,
-                    config_update: false,
-                    initiated_bit: false,
-                    continuous_bit: false,
-                    explore: false,
-                    verify_oxxx_nxxs: false,
-                    import_oxxx_nxxs: false,
-                    export_oxxx_nxxs: false,
-                    oxxx_nxxs_read: false,
-                    oxxx_nxxs_schema_read: false,
-                    oxxx_nxxs_update: false,
-                    oxxx_nxxs_delete: false,
-                    oxxx_tasks_read: false,
-                    oxxx_tasks_schema_read: false,
-                    oxxx_ref_lxx_read: false,
-                    oxxx_ref_lxx_update: false,
                     get_users: Some(true),
                     add_users: Some(true),
                     update_users: Some(true),
                     delete_users: Some(true),
+                    ..Default::default()
                 });
 
             if let Err(_) = add_res {

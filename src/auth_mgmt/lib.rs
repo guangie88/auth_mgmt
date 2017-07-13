@@ -16,3 +16,4 @@ extern crate serde_json;
 extern crate serialize;
 
 pub mod auth;
+pub use auth::*;
