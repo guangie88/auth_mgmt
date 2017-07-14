@@ -4,6 +4,23 @@ String.prototype.capitalize = function() {
 
 const catchFn = error => alert(JSON.stringify(error, null, 2));
 
+const getCurrentUrlWithoutParams = () => {
+  return window.location.protocol + '//' + window.location.host + window.location.pathname;
+};
+
+const actionToMsg = (action) => {
+  switch (action) {
+    case 'add':
+      return 'Successfully added new user!';
+    case 'update':
+      return 'Successfully updated user!';
+    case 'delete':
+      return 'Successfully deleted user(s)!';
+    default:
+      return null;
+  }
+};
+
 const app = new Vue({
   // router,
   el: '#app',
@@ -22,12 +39,15 @@ const app = new Vue({
     errorAddMsg: null,
     errorDeleteMsg: null,
     errorUpdateMsg: null,
+
+    // model for previous action status
+    prevActionMsg: null,
     
     addUser() {
       axios.post('/add_mapping', this.toAddCreds)
         .then(resp => {
           if (resp.data.status == 'ok') {
-            window.location.reload();
+            window.location.href = getCurrentUrlWithoutParams() + '?add'
           } else {
             this.errorAddMsg = 'Add user error: ' + resp.data.status;
           }
@@ -59,7 +79,7 @@ const app = new Vue({
       axios.put('/update_mapping', toUpdateUser)
         .then(resp => {
           if (resp.data.status == 'ok') {
-            window.location.reload();
+            window.location.href = getCurrentUrlWithoutParams() + '?update'
           } else {
             this.errorUpdateMsg = 'Update error: ' + resp.data.status;
           }
@@ -75,7 +95,7 @@ const app = new Vue({
       axios.delete('/force_delete_mappings', { data: confirmDeleteUsernames, headers: { 'Content-Type': 'application/json' } })
         .then(resp => {
           if (resp.data.status == 'ok') {
-            window.location.reload();
+            window.location.href = getCurrentUrlWithoutParams() + '?delete'
           } else {
             this.errorDeleteMsg = 'Delete user(s) error: ' + resp.data.status;
           }

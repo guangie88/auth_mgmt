@@ -8,5 +8,6 @@ Cargo.lock
 
 /log/
 .vscode/
+vendor/
 
 *.bin

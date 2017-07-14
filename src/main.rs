@@ -44,7 +44,7 @@ use rocket::http::uri::URI;
 use rocket::request::Form;
 use rocket::response::{NamedFile, Redirect};
 use rocket::State;
-use rocket_contrib::{JSON, Template};
+use rocket_contrib::{Json, Template};
 use serialize::hex::ToHex;
 use std::io;
 use std::fs;
@@ -80,23 +80,23 @@ macro_rules! check_perm {
     }}
 }
 
-fn into_json_resp_status<T>(r: errors::Result<T>) -> JSON<RespStatus> {
+fn into_json_resp_status<T>(r: errors::Result<T>) -> Json<RespStatus> {
     let status = match r {
         Ok(_) => RespStatus::ok(),
         Err(e) => RespStatus::new(format!("{}", e)),
     };
 
-    JSON(status)
+    Json(status)
 }
 
-fn into_json_resp_status_with_data<T>(r: errors::Result<T>) -> JSON<RespStatusWithData<T>>
+fn into_json_resp_status_with_data<T>(r: errors::Result<T>) -> Json<RespStatusWithData<T>>
 where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
     let status_with_data = match r {
         Ok(r) => RespStatusWithData::ok(r),
         Err(e) => RespStatusWithData::err(format!("{}", e)),
     };
 
-    JSON(status_with_data)
+    Json(status_with_data)
 }
 
 fn compress_opt_bool(opt: Option<bool>) -> bool {
@@ -118,7 +118,7 @@ fn write_auth_to_file(auth_mgmt: &AuthMgmt, config: &MainConfig) -> errors::Resu
     Ok(())
 }
 
-fn add_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> errors::Result<()> {
+fn add_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> errors::Result<()> {
     let (_, ref token_mappings) = *mappings.lock()?;
     let admin_task_creds = get_cred!(cookies, token_mappings);
     let add_users = compress_opt_bool(admin_task_creds.add_users);
@@ -134,7 +134,7 @@ fn add_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mapp
 }
 
 #[post("/add_mapping", data = "<user_pw_creds>")]
-fn add_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+fn add_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> Json<RespStatus> {
     into_json_resp_status(add_mapping_impl(auth_mgmt, config, mappings, cookies, user_pw_creds))
 }
 
@@ -166,7 +166,7 @@ fn generic_delete_mapping_impl<T, F>(auth_mgmt: &State<MAuthMgmt>, config: &Stat
 }
 
 #[delete("/delete_mapping", data = "<creds>")]
-fn delete_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, creds: JSON<Credentials>) -> JSON<RespStatus> {
+fn delete_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, creds: Json<Credentials>) -> Json<RespStatus> {
     into_json_resp_status(generic_delete_mapping_impl(&auth_mgmt, &config, &mappings, &cookies, &creds.username, |auth_mgmt| auth_mgmt.delete(&creds.username, &creds.password)))
 }
 
@@ -175,8 +175,8 @@ fn force_delete_mappings_impl(auth_mgmt: &State<MAuthMgmt>, config: &State<MainC
 }
 
 #[delete("/force_delete_mappings", data = "<usernames>")]
-fn force_delete_mappings(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, usernames: JSON<Vec<String>>) -> JSON<RespStatus> {
-    usernames.iter().fold(JSON(RespStatus::ok()), |prev_status, username| {
+fn force_delete_mappings(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, usernames: Json<Vec<String>>) -> Json<RespStatus> {
+    usernames.iter().fold(Json(RespStatus::ok()), |prev_status, username| {
         if prev_status.status == RESP_OK {
             into_json_resp_status(force_delete_mappings_impl(&auth_mgmt, &config, &mappings, &cookies, &username))
         } else {
@@ -185,7 +185,7 @@ fn force_delete_mappings(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>,
     })
 }
 
-fn update_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> errors::Result<()> {
+fn update_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> errors::Result<()> {
     let (ref user_mappings, ref mut token_mappings) = *mappings.lock()?;
     let admin_task_creds = get_cred!(cookies, token_mappings);
     let update_users = compress_opt_bool(admin_task_creds.update_users);
@@ -210,18 +210,18 @@ fn update_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, m
 }
 
 #[put("/update_mapping", data = "<user_pw_creds>")]
-fn update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+fn update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> Json<RespStatus> {
     into_json_resp_status(update_mapping_impl(auth_mgmt, config, mappings, cookies, user_pw_creds))
 }
 
-fn force_update_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> errors::Result<()> {
+fn force_update_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> errors::Result<()> {
     // delete then followed by add
     force_delete_mappings_impl(&auth_mgmt, &config, &mappings, &cookies, &user_pw_creds.username)?;
     add_mapping_impl(auth_mgmt, config, mappings, cookies, user_pw_creds)
 }
 
 #[put("/force_update_mapping", data = "<user_pw_creds>")]
-fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: JSON<UserPwCreds>) -> JSON<RespStatus> {
+fn force_update_mapping(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> Json<RespStatus> {
     into_json_resp_status(force_update_mapping_impl(auth_mgmt, config, mappings, cookies, user_pw_creds))
 }
 
@@ -288,12 +288,12 @@ fn info_impl(mappings: State<MMappings>, cookies: Cookies) -> errors::Result<Adm
 }
 
 #[get("/info")]
-fn info(mappings: State<MMappings>, cookies: Cookies) -> JSON<RespStatusWithData<AdminTaskCredentials>> {
+fn info(mappings: State<MMappings>, cookies: Cookies) -> Json<RespStatusWithData<AdminTaskCredentials>> {
     into_json_resp_status_with_data(info_impl(mappings, cookies))
 }
 
 #[post("/exchange", data = "<creds>")]
-fn exchange(auth_mgmt: State<MAuthMgmt>, creds: JSON<Credentials>) -> JSON<RespStatusWithData<AdminTaskCredentials>> {
+fn exchange(auth_mgmt: State<MAuthMgmt>, creds: Json<Credentials>) -> Json<RespStatusWithData<AdminTaskCredentials>> {
     into_json_resp_status_with_data(login_exchange_impl(&auth_mgmt, &creds))
 }
 
@@ -306,17 +306,28 @@ fn get_users_impl(auth_mgmt: State<MAuthMgmt>) -> errors::Result<Vec<String>> {
 }
 
 #[get("/get_users")]
-fn get_users(auth_mgmt: State<MAuthMgmt>) -> JSON<RespStatusWithData<Vec<String>>> {
+fn get_users(auth_mgmt: State<MAuthMgmt>) -> Json<RespStatusWithData<Vec<String>>> {
     into_json_resp_status_with_data(get_users_impl(auth_mgmt))
 }
 
 #[get("/get_default_creds")]
-fn get_default_creds() -> JSON<RespStatusWithData<UserPwCreds>> {
-    JSON(RespStatusWithData::ok(UserPwCreds::default()))
+fn get_default_creds() -> Json<RespStatusWithData<UserPwCreds>> {
+    Json(RespStatusWithData::ok(UserPwCreds::default()))
+}
+
+fn action_to_msg(query: Option<&str>) -> Option<&'static str> {
+    query.and_then(|action| {
+        match action {
+            "add" => Some("Successfully added new user!"),
+            "update" => Some("Successfully updated user!"),
+            "delete" => Some("Successfully deleted user(s)!"),
+            _ => None,
+        }
+    })
 }
 
 #[get("/overview")]
-fn overview(mappings: State<MMappings>, cookies: Cookies) -> Result<Template, Redirect> {
+fn overview(uri: &URI, mappings: State<MMappings>, cookies: Cookies) -> Result<Template, Redirect> {
     let token = cookies.get(TOKEN_NAME)
         .ok_or_else(|| Redirect::to(&format!("{}?fail", WEB_INDEX_PATH)))?;
 
@@ -332,7 +343,14 @@ fn overview(mappings: State<MMappings>, cookies: Cookies) -> Result<Template, Re
     let username = user_mappings.get_by_second(token.value())
         .ok_or_else(|| redirect)?;
 
-    let context = OverviewTemplateContext::new(username.to_owned());
+    let prev_action_msg = action_to_msg(uri.query());
+    let has_prev_action = prev_action_msg.is_some();
+
+    let context = OverviewTemplateContext::new(
+        username.to_owned(),
+        has_prev_action,
+        prev_action_msg.map(|msg| msg.to_owned()));
+
     Ok(Template::render("overview", &context))
 }
 

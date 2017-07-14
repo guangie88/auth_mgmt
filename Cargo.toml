@@ -14,11 +14,11 @@ log = "=0.3.8"
 log4rs = "=0.7.0"
 openssl = "=0.9.14"
 ring = "=0.11.0"
-rmp = { git = "https://github.com/3Hren/msgpack-rust.git", branch = "master" }
-rmp-serde = { git = "https://github.com/3Hren/msgpack-rust.git", branch = "master" }
-rocket = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "master" }
-rocket_codegen = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "master" }
-rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket.git", branch = "master", features = ["handlebars_templates"] }
+rmp = { git = "https://github.com/3Hren/msgpack-rust.git", rev = "f4184f2" }
+rmp-serde = { git = "https://github.com/3Hren/msgpack-rust.git", rev = "f4184f2" }
+rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "aa51fe0" }
+rocket_codegen = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "aa51fe0" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "aa51fe0", features = ["handlebars_templates", "json"] }
 serde = "=1.0.9"
 serde_derive = "=1.0.9"
 serde_json = "=1.0.2"

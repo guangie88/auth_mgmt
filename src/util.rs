@@ -38,6 +38,8 @@ pub struct IndexTemplateContext {
 #[derive(new, Debug, Serialize)]
 pub struct OverviewTemplateContext {
     pub username: String,
+    pub has_prev_action: bool,
+    pub prev_action_msg: Option<String>,
 }
 
 #[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
