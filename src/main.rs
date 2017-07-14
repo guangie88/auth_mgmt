@@ -385,17 +385,23 @@ fn get_css(path: PathBuf) -> Result<NamedFile, io::Error> {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Authentication Management", about = "Program to perform authentication management.")]
 struct MainConfig {
-    #[structopt(short = "l", long = "log-config", help = "Log config file path")]
-    log_config_path: Option<String>,
-
-    #[structopt(short = "a", long = "address", help = "Interface address to host", default_value = "0.0.0.0")]
+    #[structopt(long = "address", help = "Interface address to host", default_value = "0.0.0.0")]
     address: String,
 
-    #[structopt(short = "p", long = "port", help = "Port to host")]
+    #[structopt(short = "p", long = "port", help = "Port to host", default_value = "9090")]
     port: u16,
 
-    #[structopt(short = "b", long = "auth-bin", help = "Authentication BIN file path")]
+    #[structopt(long = "priv", help = "Private key file path", default_value = "ssl/key.pem")]
+    key_path: String,
+
+    #[structopt(long = "pub", help = "Certificate file path", default_value = "ssl/cert.pem")]
+    cert_path: String,
+
+    #[structopt(long = "auth", help = "Authentication BIN file path")]
     auth_bin_path: String,
+
+    #[structopt(short = "l", long = "log", help = "Log config file path")]
+    log_config_path: Option<String>,
 }
 
 fn run() -> errors::Result<()> {
@@ -448,6 +454,7 @@ fn run() -> errors::Result<()> {
     let rocket_config = Config::build(Environment::Production)
         .address(config.address.clone())
         .port(config.port)
+        .tls(config.cert_path.clone(), config.key_path.clone())
         .finalize()
         .chain_err(|| "Unable to create the custom rocket configuration!")?;
 
