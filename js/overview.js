@@ -1,25 +1,68 @@
-String.prototype.capitalize = function() {
-  return this.charAt(0).toUpperCase() + this.slice(1);
-}
-
 const catchFn = error => alert(JSON.stringify(error, null, 2));
 
 const getCurrentUrlWithoutParams = () => {
   return window.location.protocol + '//' + window.location.host + window.location.pathname;
 };
 
-const actionToMsg = (action) => {
-  switch (action) {
-    case 'add':
-      return 'Successfully added new user!';
-    case 'update':
-      return 'Successfully updated user!';
-    case 'delete':
-      return 'Successfully deleted user(s)!';
-    default:
-      return null;
-  }
-};
+Vue.component('creds-listing', {
+  props: ['disabled', 'creds'],
+  template: `
+    <table class="table table-striped table-bordered table-hover">
+      <thead class="thead-default">
+        <tr>
+          <th>Operation keys</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(value, key) in creds">
+          <td><span v-text="key"></span></td>
+          <td>
+            <div class="form-group">
+              <!-- boolean -->
+              <input v-if="typeof(value) === 'boolean'" :disabled="disabled" type="checkbox" v-model="creds[key]">
+
+              <!-- string -->
+              <input class="form-control" v-else-if="typeof(value) === 'string'" :disabled="disabled" type="text" v-model="creds[key]">
+
+              <!-- object -->
+              <div v-else-if="value !== null && typeof(value) === 'object'">
+                <creds-inner-listing :disabled="disabled" :creds="value"></creds-inner-listing>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  `,
+});
+
+Vue.component('creds-inner-listing', {
+  props: ['disabled', 'creds'],
+  template: `
+    <div>
+      <div class="form-group" v-for="(value, key) in creds">
+        <div class="col-sm-2">
+          <label :for="key" v-text="key"></label>
+        </div>
+
+        <div class="col-sm-10">
+          <!-- boolean -->
+          <input :id="key" v-if="typeof(value) === 'boolean'" :disabled="disabled" type="checkbox" v-model="creds[key]">
+
+          <!-- string -->
+          <input :id="key" v-else-if="typeof(value) === 'string' && key !== 'password'" class="form-control" :disabled="disabled" type="text" v-model="creds[key]">
+          <input :id="key" v-else-if="typeof(value) === 'string' && key === 'password'" class="form-control" :disabled="disabled" type="password" v-model="creds[key]">
+
+          <!-- object -->
+          <div v-else-if="value !== null && typeof(value) === 'object'">
+            <creds-inner-listing :disabled="disabled" :creds="value"></creds-inner-listing>
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
+})
 
 const app = new Vue({
   // router,
