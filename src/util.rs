@@ -49,13 +49,13 @@ pub struct UserPwCreds {
     pub creds: AdminTaskCredentials,
 }
 
+pub trait WithAllowedRoles {
+    type AllowedRoles;
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct OxxxAdminTaskCredentials {
-    #[serde(skip_serializing_if="Option::is_none")]
-    pub admin_credentials: Option<Credentials>,
-    pub sensor_id: String,
-
+pub struct OxxxAllowedRoles {
     // CommonRoleFlags
     pub start: bool,
     pub stop: bool,
@@ -93,12 +93,20 @@ pub struct OxxxAdminTaskCredentials {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct E2AdminTaskCredentials {
+pub struct OxxxAdminTaskCredentials {
     #[serde(skip_serializing_if="Option::is_none")]
     pub admin_credentials: Option<Credentials>,
     pub sensor_id: String,
-    pub fx_credentials: Credentials,
+    pub allowed_roles: OxxxAllowedRoles,
+}
 
+impl WithAllowedRoles for OxxxAdminTaskCredentials {
+    type AllowedRoles = OxxxAllowedRoles;
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct E2AllowedRoles {
     // CommonRoleFlags
     pub start: bool,
     pub stop: bool,
@@ -150,6 +158,20 @@ pub struct E2AdminTaskCredentials {
     pub delete_users: Option<bool>,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct E2AdminTaskCredentials {
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub admin_credentials: Option<Credentials>,
+    pub sensor_id: String,
+    pub fx_credentials: Credentials,
+    pub allowed_roles: E2AllowedRoles,
+}
+
+impl WithAllowedRoles for E2AdminTaskCredentials {
+    type AllowedRoles = E2AllowedRoles;
+}
+
 impl<T> From<RespStatus> for RespStatusWithData<T>
 where T: for<'de_inner> serde::Deserialize<'de_inner> + Serialize {
     fn from(e: RespStatus) -> RespStatusWithData<T> {
@@ -180,12 +202,9 @@ where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
     }
 }
 
-impl Default for OxxxAdminTaskCredentials {
+impl Default for OxxxAllowedRoles {
     fn default() -> Self {
-        OxxxAdminTaskCredentials {
-            admin_credentials: Some(Credentials::default()),
-            sensor_id: String::new(),
-
+        OxxxAllowedRoles {
             start: false,
             stop: false,
             shutdown: false,
@@ -215,13 +234,19 @@ impl Default for OxxxAdminTaskCredentials {
     }
 }
 
-impl Default for E2AdminTaskCredentials {
+impl Default for OxxxAdminTaskCredentials {
     fn default() -> Self {
-        E2AdminTaskCredentials {
+        OxxxAdminTaskCredentials {
             admin_credentials: Some(Credentials::default()),
             sensor_id: String::new(),
-            fx_credentials: Credentials::default(),
+            allowed_roles: OxxxAllowedRoles::default(),
+        }
+    }
+}
 
+impl Default for E2AllowedRoles {
+    fn default() -> Self {
+        E2AllowedRoles {
             start: true,
             stop: true,
             shutdown: true,
@@ -266,6 +291,17 @@ impl Default for E2AdminTaskCredentials {
     }
 }
 
+impl Default for E2AdminTaskCredentials {
+    fn default() -> Self {
+        E2AdminTaskCredentials {
+            admin_credentials: Some(Credentials::default()),
+            sensor_id: String::new(),
+            fx_credentials: Credentials::default(),
+            allowed_roles: E2AllowedRoles::default(),
+        }
+    }
+}
+
 pub mod errors {
     error_chain! {
         errors {
@@ -298,6 +334,7 @@ impl<T> From<std::sync::PoisonError<T>> for errors::Error {
 pub type User = String;
 pub type Token = String;
 pub type AdminTaskCredentials = E2AdminTaskCredentials;
+pub type AllowedRoles = <E2AdminTaskCredentials as WithAllowedRoles>::AllowedRoles;
 pub type UserMappings = BidirMap<User, Token>;
 pub type TokenMappings = HashMap<Token, AdminTaskCredentials>;
 pub type MAuthMgmt = Mutex<AuthMgmt>;

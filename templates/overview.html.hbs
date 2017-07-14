@@ -49,13 +49,13 @@
         <li class="nav-item">
           <a class="nav-link active" href="#info" data-toggle="tab" role="tab">Info</a>
         </li>
-        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.addUsers">
+        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.addUsers">
           <a class="nav-link" href="#add" data-toggle="tab" role="tab">Add User</a>
         </li>
-        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.updateUsers">
+        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.updateUsers">
           <a class="nav-link" href="#update" data-toggle="tab" role="tab">Update User</a>
         </li>
-        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.deleteUsers">
+        <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.deleteUsers">
           <a class="nav-link" href="#delete" data-toggle="tab" role="tab">Delete Users</a>
         </li>
       </ul>
@@ -93,7 +93,7 @@
           </table>
         </div>
 
-        <div class="tab-pane" id="add" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.addUsers">
+        <div class="tab-pane" id="add" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.addUsers">
           <div v-if="toAddCreds !== null" class="form-horizontal">
             <div class="vspacer"></div>
             <div v-if="errorAddMsg" class="alert alert-danger alert-no-margin">
@@ -144,11 +144,11 @@
               </tbody>
             </table>
 
-            <button :disabled="!toAddCreds.username || !toAddCreds.password" class="btn btn-primary btn-block" @click="addUser()">Add user</button>
+            <button :disabled="!toAddCreds.username || !toAddCreds.password" class="btn btn-primary btn-block vspacer" @click="addUser()">Add user</button>
           </div>
         </div>
 
-        <div class="tab-pane" id="update" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.updateUsers">
+        <div class="tab-pane" id="update" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.updateUsers">
           <div class="vspacer"></div>
           <div v-if="errorUpdateMsg" class="alert alert-danger alert-no-margin">
             <strong v-text="errorUpdateMsg"></strong>
@@ -238,7 +238,7 @@
           </div>
         </div>
 
-        <div class="tab-pane" id="delete" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.deleteUsers">
+        <div class="tab-pane" id="delete" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.deleteUsers">
           <div class="vspacer"></div>
           <div v-if="errorDeleteMsg" class="alert alert-danger alert-no-margin">
             <strong v-text="errorDeleteMsg"></strong>
@@ -261,7 +261,7 @@
               </tbody>
             </table>
 
-            <button class="btn btn-danger btn-block" :disabled="_.every(toDeleteUsers, u => !u.delete)" @click="deleteUsers()">Delete user(s)</button>
+            <button class="btn btn-danger btn-block vspacer" :disabled="_.every(toDeleteUsers, u => !u.delete)" @click="deleteUsers()">Delete user(s)</button>
           </div>
         </div>
       </div>

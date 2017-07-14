@@ -121,7 +121,7 @@ fn write_auth_to_file(auth_mgmt: &AuthMgmt, config: &MainConfig) -> errors::Resu
 fn add_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> errors::Result<()> {
     let (_, ref token_mappings) = *mappings.lock()?;
     let admin_task_creds = get_cred!(cookies, token_mappings);
-    let add_users = compress_opt_bool(admin_task_creds.add_users);
+    let add_users = compress_opt_bool(admin_task_creds.allowed_roles.add_users);
 
     // check for permission
     check_perm!(add_users);
@@ -144,7 +144,7 @@ fn generic_delete_mapping_impl<T, F>(auth_mgmt: &State<MAuthMgmt>, config: &Stat
     let (ref mut user_mappings, ref mut token_mappings) = *mappings.lock()?;
 
     let admin_task_creds = get_cred!(cookies, token_mappings);
-    let delete_users = compress_opt_bool(admin_task_creds.delete_users);
+    let delete_users = compress_opt_bool(admin_task_creds.allowed_roles.delete_users);
 
     // check for permission
     check_perm!(delete_users);
@@ -188,7 +188,7 @@ fn force_delete_mappings(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>,
 fn update_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> errors::Result<()> {
     let (ref user_mappings, ref mut token_mappings) = *mappings.lock()?;
     let admin_task_creds = get_cred!(cookies, token_mappings);
-    let update_users = compress_opt_bool(admin_task_creds.update_users);
+    let update_users = compress_opt_bool(admin_task_creds.allowed_roles.update_users);
 
     // check for permission
     check_perm!(update_users);
@@ -428,9 +428,12 @@ fn run() -> errors::Result<()> {
             let add_res = auth_mgmt.add(
                 "admin".to_owned(), "admin".to_owned(),
                 &AdminTaskCredentials {
-                    add_users: Some(true),
-                    update_users: Some(true),
-                    delete_users: Some(true),
+                    allowed_roles: AllowedRoles {
+                        add_users: Some(true),
+                        update_users: Some(true),
+                        delete_users: Some(true),
+                        ..Default::default()
+                    },
                     ..Default::default()
                 });
 
