@@ -31,19 +31,20 @@
     <div id="app" class="container">
       <div class="display-table">
         <svg class="logo-small"><image class="logo-small" xlink:href="/images/favicon.svg" /></svg>
-        <div class="display-4 display-table-cell valign-middle">SSF Auth Management Overview</div>
+        <div class="display-4 display-table-cell align-middle">SSF Auth Management Overview</div>
       </div>
 
       <div class="vspacer"></div>
 
       <span class="alert alert-info alert-no-margin display-table row">
-        <span class="display-table-cell valign-middle col-sm-10"><big>Current username: <b>{{username}}</b></big></span>
-        <span class="display-table-cell valign-middle col-sm-2" align="right">
+        <span class="display-table-cell align-middle col-sm-10"><big>Current username: <b>{{username}}</b></big></span>
+        <span class="display-table-cell align-middle col-sm-2" align="right">
           <button class="btn btn-danger" @click="logout()">Logout</button>
         </span>
       </span>
 
       <div v-if="{{has_prev_action}}" class="alert alert-success alert-no-margin">
+        <svg class="glyph align-middle"><image class="glyph" xlink:href="/images/check.svg" /></svg>
         <strong>{{prev_action_msg}}</strong>
       </div>
 
@@ -71,9 +72,7 @@
         <div class="tab-pane" id="add" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.addUsers">
           <div v-if="toAddCreds !== null" class="form-horizontal">
             <div class="vspacer"></div>
-            <div v-if="errorAddMsg" class="alert alert-danger alert-no-margin">
-              <strong v-text="errorAddMsg"></strong>
-            </div>
+            <wrong-msg :msg="errorAddMsg"></wrong-msg>
 
             <!-- actual login username and password -->
             <div class="form-group">
@@ -93,57 +92,43 @@
 
         <div class="tab-pane" id="update" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.updateUsers">
           <div class="vspacer"></div>
-          <div v-if="errorUpdateMsg" class="alert alert-danger alert-no-margin">
-            <strong v-text="errorUpdateMsg"></strong>
-          </div>
+          <wrong-msg :msg="errorUpdateMsg"></wrong-msg>
 
           <div id="accordion" role="tablist" aria-multiselectable="true">
             <!-- top -->
             <div class="card vspacer">
-              <div class="card-header" role="tab" id="headingOne">
-                <h5 class="mb-0">
-                  <a data-toggle="collapse" data-parent="#accordion" href="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-                    Selected User Credentials
-                  </a>
-                </h5>
+              <div class="card-header" role="tab">
+                <h5 class="mb-0">Selected User Credentials</h5>
               </div>
 
               <form class="form-horizontal" @submit.prevent="">
-                <div id="collapseOne" class="collapse show" role="tabpanel" aria-labelledby="headingOne">
-                  <div class="card-block">
-                    <div class="form-group">
-                      <label for="selectedUpdateUser">User to update:</label>
-                      <select id="selectedUpdateUser" class="form-control custom-select" v-model="selectedUpdate.username">
-                        <option v-for="toUpdateUser in toUpdateUsers" v-text="toUpdateUser.username"></option>
-                      </select>
-                    </div>
-
-                    <div class="form-group">
-                      <label for="selectedUpdatePassword">Password:</label>
-                      <input class="form-control" type="password" id="selectedUpdatePassword" v-model="selectedUpdate.password">
-                    </div>
-
-                    <button :disabled="!selectedUpdate.username || !selectedUpdate.password" class="btn btn-primary btn-block" type="submit" @click="exchange()">Retrieve user permissions</button>
+                <div class="card-block" role="tabpanel">
+                  <div class="form-group">
+                    <label for="selectedUpdateUser">User to update:</label>
+                    <select id="selectedUpdateUser" class="form-control custom-select" v-model="selectedUpdate.username">
+                      <option v-for="toUpdateUser in toUpdateUsers" v-text="toUpdateUser.username"></option>
+                    </select>
                   </div>
+
+                  <div class="form-group">
+                    <label for="selectedUpdatePassword">Password:</label>
+                    <input class="form-control" type="password" id="selectedUpdatePassword" v-model="selectedUpdate.password">
+                  </div>
+
+                  <button :disabled="!selectedUpdate.username || !selectedUpdate.password" class="btn btn-primary btn-block" type="submit" @click="exchange()">Retrieve user permissions</button>
                 </div>
               </form>
             </div>
 
             <!-- bottom -->
             <div class="card" v-if="selectedExchange !== null">
-              <div class="card-header" role="tab" id="headingTwo">
-                <h5 class="mb-0">
-                  <a data-toggle="collapse" data-parent="#accordion" href="#collapseTwo" aria-expanded="true" aria-controls="collapseTwo">
-                    Update Details
-                  </a>
-                </h5>
+              <div class="card-header" role="tab">
+                <h5 class="mb-0">Update Details</h5>
               </div>
 
-              <div id="collapseTwo" class="collapse show form-horizontal" role="tabpanel" aria-labelledby="headingTwo">
-                <div class="card-block">
-                  <creds-listing :disabled="false" :creds="selectedExchange"></creds-listing>
-                  <button class="btn btn-primary btn-block" @click="updateUser()">Update user permissions</button>
-                </div>
+              <div class="card-block form-horizontal" role="tabpanel">
+                <creds-listing :disabled="false" :creds="selectedExchange"></creds-listing>
+                <button class="btn btn-primary btn-block" @click="updateUser()">Update user permissions</button>
               </div>
             </div>
           </div>
@@ -151,9 +136,7 @@
 
         <div class="tab-pane" id="delete" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.deleteUsers">
           <div class="vspacer"></div>
-          <div v-if="errorDeleteMsg" class="alert alert-danger alert-no-margin">
-            <strong v-text="errorDeleteMsg"></strong>
-          </div>
+          <wrong-msg :msg="errorDeleteMsg"></wrong-msg>
 
           <h5 v-if="toDeleteUsers && toDeleteUsers.length <= 1">No other user entries to delete!</h5>
           <div v-else>
@@ -168,7 +151,7 @@
                 <tr v-for="toDeleteUser in toDeleteUsers" v-if="toDeleteUser.username !== '{{username}}'">
                   <td><span v-text="toDeleteUser.username"></span></td>
                   <td>
-                    <label class="custom-control custom-checkbox">
+                    <label class="custom-control custom-checkbox align-middle">
                       <input class="custom-control-input" type="checkbox" v-model="toDeleteUser.delete">
                       <span class="custom-control-indicator"></span>
                     </label>

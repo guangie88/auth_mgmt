@@ -24,13 +24,14 @@
       
       <div class="display-table">
         <svg class="logo-big"><image class="logo-big" xlink:href="/images/favicon.svg" /></svg>
-        <div class="display-4 display-table-cell valign-middle">SSF Auth Management Login</div>
+        <div class="display-4 display-table-cell align-middle">SSF Auth Management Login</div>
       </div>
 
       <div class="vspacer"></div>
 
       <div v-if="{{fail}}" class="alert alert-danger" role="alert">
-        <strong>Invalid credentials provided!</strong>
+        <div class="display-table-cell"><svg class="glyph align-middle"><image class="glyph" xlink:href="/images/x.svg" /></svg></div>
+        <strong class="display-table-cell align-middle">Invalid credentials provided!</strong>
       </div>
 
       <form action="/login" method="post">

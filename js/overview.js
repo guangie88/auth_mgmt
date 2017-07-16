@@ -4,71 +4,54 @@ const getCurrentUrlWithoutParams = () => {
   return window.location.protocol + '//' + window.location.host + window.location.pathname;
 };
 
-Vue.component('creds-listing', {
-  props: ['disabled', 'creds'],
+Vue.component('wrong-msg', {
+  props: ['msg'],
   template: `
-    <table class="table table-striped table-bordered">
-      <thead class="thead-default">
-        <tr>
-          <th>Operation keys</th>
-          <th>Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(value, key) in creds">
-          <td><span v-text="key"></span></td>
-          <td>
-            <div class="form-group">
-              <!-- boolean -->
-              <label v-if="typeof(value) === 'boolean'" class="custom-control custom-checkbox">
-                <input class="custom-control-input" :disabled="disabled" type="checkbox" v-model="creds[key]">
-                <span class="custom-control-indicator"></span>
-              </label>
-
-              <!-- string -->
-              <input class="form-control" v-else-if="typeof(value) === 'string'" :disabled="disabled" type="text" v-model="creds[key]">
-
-              <!-- object -->
-              <div v-else-if="value !== null && typeof(value) === 'object'">
-                <creds-inner-listing :disabled="disabled" :creds="value"></creds-inner-listing>
-              </div>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="msg" class="alert alert-danger alert-no-margin display-table">
+      <div class="display-table-cell"><svg class="glyph align-middle"><image class="glyph" xlink:href="/images/x.svg" /></svg></div>
+      <strong class="display-table-cell align-middle" v-text="msg"></strong>
+    </div>
   `,
 });
 
-Vue.component('creds-inner-listing', {
+Vue.component('creds-listing', {
   props: ['disabled', 'creds'],
   template: `
     <div>
-      <div class="form-group" v-for="(value, key) in creds">
-        <div class="col-sm-2">
-          <label :for="key" v-text="key"></label>
-        </div>
-
-        <div class="col-sm-10">
-          <!-- boolean -->
-          <label v-if="typeof(value) === 'boolean'" class="custom-control custom-checkbox">
+      <template v-for="(value, key) in creds">
+        <!-- boolean -->
+        <div v-if="typeof(value) === 'boolean'" class="form-group row">
+          <label class="custom-control custom-checkbox">
             <input class="custom-control-input" :disabled="disabled" type="checkbox" v-model="creds[key]">
             <span class="custom-control-indicator"></span>
+            <span class="custom-control-description" v-text="key"></span>
           </label>
+        </div>
 
-          <!-- string -->
-          <input :id="key" v-else-if="typeof(value) === 'string' && key !== 'password'" class="form-control" :disabled="disabled" type="text" v-model="creds[key]">
-          <input :id="key" v-else-if="typeof(value) === 'string' && key === 'password'" class="form-control" :disabled="disabled" type="password" v-model="creds[key]">
-
-          <!-- object -->
-          <div v-else-if="value !== null && typeof(value) === 'object'">
-            <creds-inner-listing :disabled="disabled" :creds="value"></creds-inner-listing>
+        <!-- string -->
+        <div v-else-if="typeof(value) === 'string'" class="form-group row">
+          <label :for="key" class="col-form-label col-sm-2" v-html="key"></label>
+          <div class="col-sm-10">
+            <input :id="key" class="form-control" :disabled="disabled" type="text" v-text="creds[key]">
           </div>
         </div>
-      </div>
+
+        <!-- object -->
+        <div v-else-if="value !== null && typeof(value) === 'object'">
+          <div class="card vspacer">
+            <div class="card-header" role="tab">
+              <h5 class="mb-0" v-text="key"></h5>
+            </div>
+
+            <div :aria-labelledby="key" class="card-block" role="tabpanel">
+              <creds-listing :disabled="disabled" :creds="value"></creds-listing>        
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   `,
-})
+});
 
 const app = new Vue({
   // router,
@@ -91,6 +74,10 @@ const app = new Vue({
 
     // model for previous action status
     prevActionMsg: null,
+
+    capitalize(s) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    },
     
     addUser() {
       axios.post('/add_mapping', this.toAddCreds)

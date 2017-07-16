@@ -1,5 +1,6 @@
 body {
     overflow-y: scroll;
+    line-height: 1;
 }
 
 .alert-no-margin {
@@ -15,12 +16,8 @@ body {
     display: table-cell;
 }
 
-.valign-middle {
-    vertical-align: middle;
-}
-
 .vspacer {
-    margin-bottom: 1.5em;
+    margin: 1.5em 0 1.5em 0;
 }
 
 .logo-big {
@@ -35,11 +32,51 @@ body {
     margin-right: 1em;
 }
 
+.glyph {
+    height: 1.25em;
+    width: 1.25em;
+    margin-right: 1em;
+}
+
+.form-group.row {
+    margin: 0px;
+}
+
+.custom-control {
+    min-height: 0px;
+    padding-left: 0px;
+    margin-right: 0px;
+}
+
+.custom-control-description {
+    margin-left: 0.5em;
+    vertical-align: middle;
+}
+
+.custom-control.custom-checkbox {
+    margin-bottom: 0px;
+}
+
 .custom-control-indicator {
-    width: 20px;
-    height: 20px;
+    position: relative;
+    top: 0;
+    width: 1.25em;
+    height: 1.25em;
+    vertical-align: middle;
+}
+
+.custom-control-input {
+    vertical-align: middle;
 }
 
 .custom-checkbox .custom-control-indicator {
     border-radius: 100%;
+}
+
+.form-group.row + .form-group.row {
+    margin-top: 0.5em !important;
+}
+
+.custom-control-input:disabled~.custom-control-indicator {
+    background-color: #d9edf7;
 }
