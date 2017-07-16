@@ -26,6 +26,8 @@
     <link rel="stylesheet" href="/css/app.css">
   </head>
   <body>
+    <div class="vspacer"></div>
+
     <div id="app" class="container">
       <div class="display-table">
         <svg class="logo-small"><image class="logo-small" xlink:href="/images/favicon.svg" /></svg>
@@ -155,7 +157,7 @@
 
           <h5 v-if="toDeleteUsers && toDeleteUsers.length <= 1">No other user entries to delete!</h5>
           <div v-else>
-            <table class="table table-striped table-bordered table-hover">
+            <table class="table table-striped table-bordered">
               <thead class="thead-default">
                 <tr>
                   <th>Users</th>
@@ -165,11 +167,15 @@
               <tbody>
                 <tr v-for="toDeleteUser in toDeleteUsers" v-if="toDeleteUser.username !== '{{username}}'">
                   <td><span v-text="toDeleteUser.username"></span></td>
-                  <td><input type="checkbox" v-model="toDeleteUser.delete"></td>
+                  <td>
+                    <label class="custom-control custom-checkbox">
+                      <input class="custom-control-input" type="checkbox" v-model="toDeleteUser.delete">
+                      <span class="custom-control-indicator"></span>
+                    </label>
+                  </td>
                 </tr>
               </tbody>
             </table>
-
             <button class="btn btn-danger btn-block vspacer" :disabled="_.every(toDeleteUsers, u => !u.delete)" @click="deleteUsers()">Delete user(s)</button>
           </div>
         </div>

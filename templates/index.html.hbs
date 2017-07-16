@@ -20,6 +20,8 @@
   </head>
   <body>
     <div id="app" class="container">
+      <div class="vspacer"></div>
+      
       <div class="display-table">
         <svg class="logo-big"><image class="logo-big" xlink:href="/images/favicon.svg" /></svg>
         <div class="display-4 display-table-cell valign-middle">SSF Auth Management Login</div>
@@ -34,15 +36,15 @@
       <form action="/login" method="post">
         <div class="form-group">
           <label for="username">Username:</label>
-          <input id="username" name="username" type="text" class="form-control" placeholder="Enter your username" autofocus>
+          <input id="username" name="username" type="text" class="form-control" placeholder="Enter your username" v-model="username" autofocus>
         </div>
 
         <div class="form-group">
           <label for="password">Password:</label>
-          <input id="password" name="password" type="password" class="form-control" placeholder="Enter the password">
+          <input id="password" name="password" type="password" class="form-control" placeholder="Enter the password" v-model="password">
         </div>
 
-        <button type="submit" class="btn btn-primary btn-block">Log in</button>
+        <button :disabled="!username || !password" type="submit" class="btn btn-primary btn-block">Log in</button>
       </form>
     </div>
 

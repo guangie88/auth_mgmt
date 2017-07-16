@@ -7,7 +7,7 @@ const getCurrentUrlWithoutParams = () => {
 Vue.component('creds-listing', {
   props: ['disabled', 'creds'],
   template: `
-    <table class="table table-striped table-bordered table-hover">
+    <table class="table table-striped table-bordered">
       <thead class="thead-default">
         <tr>
           <th>Operation keys</th>
@@ -20,7 +20,10 @@ Vue.component('creds-listing', {
           <td>
             <div class="form-group">
               <!-- boolean -->
-              <input v-if="typeof(value) === 'boolean'" :disabled="disabled" type="checkbox" v-model="creds[key]">
+              <label v-if="typeof(value) === 'boolean'" class="custom-control custom-checkbox">
+                <input class="custom-control-input" :disabled="disabled" type="checkbox" v-model="creds[key]">
+                <span class="custom-control-indicator"></span>
+              </label>
 
               <!-- string -->
               <input class="form-control" v-else-if="typeof(value) === 'string'" :disabled="disabled" type="text" v-model="creds[key]">
@@ -48,7 +51,10 @@ Vue.component('creds-inner-listing', {
 
         <div class="col-sm-10">
           <!-- boolean -->
-          <input :id="key" v-if="typeof(value) === 'boolean'" :disabled="disabled" type="checkbox" v-model="creds[key]">
+          <label v-if="typeof(value) === 'boolean'" class="custom-control custom-checkbox">
+            <input class="custom-control-input" :disabled="disabled" type="checkbox" v-model="creds[key]">
+            <span class="custom-control-indicator"></span>
+          </label>
 
           <!-- string -->
           <input :id="key" v-else-if="typeof(value) === 'string' && key !== 'password'" class="form-control" :disabled="disabled" type="text" v-model="creds[key]">
