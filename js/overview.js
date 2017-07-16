@@ -1,5 +1,10 @@
 const catchFn = error => alert(JSON.stringify(error, null, 2));
 
+const scrollTo = anchor => {
+  const top = document.getElementById(anchor).offsetTop;
+  window.scrollTo(0, top);
+};
+
 const getCurrentUrlWithoutParams = () => {
   return window.location.protocol + '//' + window.location.host + window.location.pathname;
 };
@@ -7,8 +12,8 @@ const getCurrentUrlWithoutParams = () => {
 Vue.component('wrong-msg', {
   props: ['msg'],
   template: `
-    <div v-if="msg" class="alert alert-danger alert-no-margin display-table">
-      <div class="display-table-cell"><svg class="glyph align-middle"><image class="glyph" xlink:href="/images/x.svg" /></svg></div>
+    <div v-if="msg" class="alert alert-danger alert-no-margin display-table full-width">
+      <div class="display-table-cell glyph align-middle"><svg class="glyph align-middle"><image class="glyph" xlink:href="/images/x.svg" /></svg></div>
       <strong class="display-table-cell align-middle" v-text="msg"></strong>
     </div>
   `,
@@ -79,19 +84,20 @@ const app = new Vue({
       return s.charAt(0).toUpperCase() + s.slice(1);
     },
     
-    addUser() {
+    addUser(errAnchor) {
       axios.post('/add_mapping', this.toAddCreds)
         .then(resp => {
           if (resp.data.status == 'ok') {
             window.location.href = getCurrentUrlWithoutParams() + '?add'
           } else {
             this.errorAddMsg = 'Add user error: ' + resp.data.status;
+            scrollTo(errAnchor);
           }
         })
         .catch(catchFn);
     },
 
-    exchange() {
+    exchange(errAnchor) {
       axios.post('/exchange', this.selectedUpdate)
         .then(resp => {
           if (resp.data.status == 'ok') {
@@ -100,12 +106,13 @@ const app = new Vue({
           } else {
             this.errorUpdateMsg = 'Invalid retrieval: ' + resp.data.status;
             this.selectedExchange = null;
+            scrollTo(errAnchor);
           }
         })
         .catch(catchFn);
     },
 
-    updateUser() {
+    updateUser(errAnchor) {
       const toUpdateUser = {
         username: this.selectedUpdate.username,
         password: this.selectedUpdate.password,
@@ -118,12 +125,13 @@ const app = new Vue({
             window.location.href = getCurrentUrlWithoutParams() + '?update'
           } else {
             this.errorUpdateMsg = 'Update error: ' + resp.data.status;
+            scrollTo(errAnchor);
           }
         })
         .catch(catchFn);
     },
 
-    deleteUsers() {
+    deleteUsers(errAnchor) {
       const confirmDeleteUserGroups = _.filter(this.toDeleteUsers, toDeleteUser => toDeleteUser.delete);
       const confirmDeleteUsernames = _.map(confirmDeleteUserGroups, confirmDeleteUserGroup => confirmDeleteUserGroup.username);
 
@@ -134,6 +142,7 @@ const app = new Vue({
             window.location.href = getCurrentUrlWithoutParams() + '?delete'
           } else {
             this.errorDeleteMsg = 'Delete user(s) error: ' + resp.data.status;
+            scrollTo(errAnchor);
           }
         })
         .catch(catchFn);

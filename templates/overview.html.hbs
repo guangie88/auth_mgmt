@@ -43,12 +43,12 @@
         </span>
       </span>
 
-      <div v-if="{{has_prev_action}}" class="alert alert-success alert-no-margin">
-        <svg class="glyph align-middle"><image class="glyph" xlink:href="/images/check.svg" /></svg>
-        <strong>{{prev_action_msg}}</strong>
+      <div v-if="{{has_prev_action}}" class="alert alert-success alert-no-margin display-table full-width">
+        <div class="display-table-cell glyph align-middle"><svg class="glyph align-middle"><image class="glyph" xlink:href="/images/check.svg" /></svg></div>
+        <strong class="display-table-cell align-middle">{{prev_action_msg}}</strong>
       </div>
 
-      <ul class="nav nav-tabs nav-fill">
+      <ul id="errAnchor" class="nav nav-tabs nav-fill">
         <li class="nav-item">
           <a class="nav-link active" href="#info" data-toggle="tab" role="tab">Info</a>
         </li>
@@ -86,7 +86,7 @@
             </div>
 
             <creds-listing :disabled="false" :creds="toAddCreds.creds"></creds-listing>
-            <button :disabled="!toAddCreds.username || !toAddCreds.password" class="btn btn-primary btn-block vspacer" @click="addUser()">Add user</button>
+            <button :disabled="!toAddCreds.username || !toAddCreds.password" class="btn btn-primary btn-block vspacer" @click="addUser('errAnchor')">Add user</button>
           </div>
         </div>
 
@@ -115,7 +115,7 @@
                     <input class="form-control" type="password" id="selectedUpdatePassword" v-model="selectedUpdate.password">
                   </div>
 
-                  <button :disabled="!selectedUpdate.username || !selectedUpdate.password" class="btn btn-primary btn-block" type="submit" @click="exchange()">Retrieve user permissions</button>
+                  <button :disabled="!selectedUpdate.username || !selectedUpdate.password" class="btn btn-primary btn-block" type="submit" @click="exchange('errAnchor')">Retrieve user permissions</button>
                 </div>
               </form>
             </div>
@@ -128,7 +128,7 @@
 
               <div class="card-block form-horizontal" role="tabpanel">
                 <creds-listing :disabled="false" :creds="selectedExchange"></creds-listing>
-                <button class="btn btn-primary btn-block" @click="updateUser()">Update user permissions</button>
+                <button class="btn btn-primary btn-block" @click="updateUser('errAnchor')">Update user permissions</button>
               </div>
             </div>
           </div>
@@ -159,7 +159,7 @@
                 </tr>
               </tbody>
             </table>
-            <button class="btn btn-danger btn-block vspacer" :disabled="_.every(toDeleteUsers, u => !u.delete)" @click="deleteUsers()">Delete user(s)</button>
+            <button class="btn btn-danger btn-block vspacer" :disabled="_.every(toDeleteUsers, u => !u.delete)" @click="deleteUsers('errAnchor')">Delete user(s)</button>
           </div>
         </div>
       </div>

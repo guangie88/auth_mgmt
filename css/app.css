@@ -3,6 +3,10 @@ body {
     line-height: 1;
 }
 
+.full-width {
+    width: 100%;
+}
+
 .alert-no-margin {
     margin-left: 0;
     margin-right: 0;
