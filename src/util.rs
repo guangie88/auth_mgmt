@@ -3,6 +3,7 @@ use bidir_map::BidirMap;
 use serde::{self, Deserialize, Serialize};
 use std;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 // constants
@@ -38,6 +39,7 @@ pub struct IndexTemplateContext {
 #[derive(new, Debug, Serialize)]
 pub struct OverviewTemplateContext {
     pub username: String,
+    pub auth_bin_path: PathBuf,
     pub has_prev_action: bool,
     pub prev_action_msg: Option<String>,
 }

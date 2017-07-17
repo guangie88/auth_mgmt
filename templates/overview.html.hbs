@@ -43,6 +43,10 @@
         </span>
       </span>
 
+      <span class="alert alert-warning alert-no-margin row">
+        <span class="align-middle">Auth management data file path: <code>{{auth_bin_path}}</code></span>      
+      </span>
+
       <div v-if="{{has_prev_action}}" class="alert alert-success alert-no-margin display-table full-width">
         <div class="display-table-cell glyph align-middle"><svg class="glyph align-middle"><image class="glyph" xlink:href="/images/check.svg" /></svg></div>
         <strong class="display-table-cell align-middle">{{prev_action_msg}}</strong>
@@ -82,11 +86,16 @@
 
             <div class="form-group">
               <label for="outerPassword">Password:</label>
-              <input class="form-control" type="password" id="outerPassword" v-model="toAddCreds.password">
+              <input class="form-control" type="password" id="outerPassword" v-model="toAddCreds.password" @input="pwDebounce">
+            </div>
+
+            <div class="form-group">
+              <label for="confirmPassword">Confirm Password:</label>
+              <input class="form-control" type="password" id="confirmPassword" v-model="confirmPassword" @input="pwDebounce">
             </div>
 
             <creds-listing :disabled="false" :creds="toAddCreds.creds"></creds-listing>
-            <button :disabled="!toAddCreds.username || !toAddCreds.password" class="btn btn-primary btn-block vspacer" @click="addUser('errAnchor')">Add user</button>
+            <button :disabled="!toAddCreds.username || !toAddCreds.password || !confirmPassword || toAddCreds.password != confirmPassword" class="btn btn-primary btn-block vspacer" @click="addUser('errAnchor')">Add user</button>
           </div>
         </div>
 

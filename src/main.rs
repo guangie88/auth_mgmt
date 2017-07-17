@@ -327,7 +327,7 @@ fn action_to_msg(query: Option<&str>) -> Option<&'static str> {
 }
 
 #[get("/overview")]
-fn overview(uri: &URI, mappings: State<MMappings>, cookies: Cookies) -> Result<Template, Redirect> {
+fn overview(uri: &URI, mappings: State<MMappings>, config: State<MainConfig>, cookies: Cookies) -> Result<Template, Redirect> {
     let token = cookies.get(TOKEN_NAME)
         .ok_or_else(|| Redirect::to(&format!("{}?fail", WEB_INDEX_PATH)))?;
 
@@ -346,8 +346,14 @@ fn overview(uri: &URI, mappings: State<MMappings>, cookies: Cookies) -> Result<T
     let prev_action_msg = action_to_msg(uri.query());
     let has_prev_action = prev_action_msg.is_some();
 
+    let auth_bin_path_canon = match Path::new(&config.auth_bin_path).canonicalize() {
+        Ok(auth_bin_path_canon) => auth_bin_path_canon,
+        Err(_) => Path::new(&config.auth_bin_path).to_owned(),
+    };
+
     let context = OverviewTemplateContext::new(
         username.to_owned(),
+        auth_bin_path_canon,
         has_prev_action,
         prev_action_msg.map(|msg| msg.to_owned()));
 

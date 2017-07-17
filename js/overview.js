@@ -6,13 +6,13 @@ const scrollTo = anchor => {
 };
 
 const getCurrentUrlWithoutParams = () => {
-  return window.location.protocol + '//' + window.location.host + window.location.pathname;
+  return `${window.location.protocol}//${window.location.host}${window.location.pathname}`
 };
 
 Vue.component('wrong-msg', {
   props: ['msg'],
   template: `
-    <div v-if="msg" class="alert alert-danger alert-no-margin display-table full-width">
+    <div v-if="msg !== null" class="alert alert-danger alert-no-margin display-table full-width">
       <div class="display-table-cell glyph align-middle"><svg class="glyph align-middle"><image class="glyph" xlink:href="/images/x.svg" /></svg></div>
       <strong class="display-table-cell align-middle" v-text="msg"></strong>
     </div>
@@ -37,7 +37,7 @@ Vue.component('creds-listing', {
         <div v-else-if="typeof(value) === 'string'" class="form-group row">
           <label :for="key" class="col-form-label col-sm-2" v-html="key"></label>
           <div class="col-sm-10">
-            <input :id="key" class="form-control" :disabled="disabled" type="text" v-text="creds[key]">
+            <input :id="key" class="form-control" :disabled="disabled" type="text" v-model="creds[key]">
           </div>
         </div>
 
@@ -65,6 +65,7 @@ const app = new Vue({
   data: {
     // models
     adminTaskCreds: null,
+    confirmPassword: null,
     selectedExchange: null,
     selectedUpdate: { username: null, password: null },
     toAddCreds: null,
@@ -79,79 +80,6 @@ const app = new Vue({
 
     // model for previous action status
     prevActionMsg: null,
-
-    capitalize(s) {
-      return s.charAt(0).toUpperCase() + s.slice(1);
-    },
-    
-    addUser(errAnchor) {
-      axios.post('/add_mapping', this.toAddCreds)
-        .then(resp => {
-          if (resp.data.status == 'ok') {
-            window.location.href = getCurrentUrlWithoutParams() + '?add'
-          } else {
-            this.errorAddMsg = 'Add user error: ' + resp.data.status;
-            scrollTo(errAnchor);
-          }
-        })
-        .catch(catchFn);
-    },
-
-    exchange(errAnchor) {
-      axios.post('/exchange', this.selectedUpdate)
-        .then(resp => {
-          if (resp.data.status == 'ok') {
-            this.selectedExchange = resp.data.data;
-            this.errorUpdateMsg = null;
-          } else {
-            this.errorUpdateMsg = 'Invalid retrieval: ' + resp.data.status;
-            this.selectedExchange = null;
-            scrollTo(errAnchor);
-          }
-        })
-        .catch(catchFn);
-    },
-
-    updateUser(errAnchor) {
-      const toUpdateUser = {
-        username: this.selectedUpdate.username,
-        password: this.selectedUpdate.password,
-        creds: this.selectedExchange,
-      };
-
-      axios.put('/update_mapping', toUpdateUser)
-        .then(resp => {
-          if (resp.data.status == 'ok') {
-            window.location.href = getCurrentUrlWithoutParams() + '?update'
-          } else {
-            this.errorUpdateMsg = 'Update error: ' + resp.data.status;
-            scrollTo(errAnchor);
-          }
-        })
-        .catch(catchFn);
-    },
-
-    deleteUsers(errAnchor) {
-      const confirmDeleteUserGroups = _.filter(this.toDeleteUsers, toDeleteUser => toDeleteUser.delete);
-      const confirmDeleteUsernames = _.map(confirmDeleteUserGroups, confirmDeleteUserGroup => confirmDeleteUserGroup.username);
-
-      // DELETE has a different API from POST
-      axios.delete('/force_delete_mappings', { data: confirmDeleteUsernames, headers: { 'Content-Type': 'application/json' } })
-        .then(resp => {
-          if (resp.data.status == 'ok') {
-            window.location.href = getCurrentUrlWithoutParams() + '?delete'
-          } else {
-            this.errorDeleteMsg = 'Delete user(s) error: ' + resp.data.status;
-            scrollTo(errAnchor);
-          }
-        })
-        .catch(catchFn);
-    },
-
-    logout() {
-      this.$cookies.remove('token', '/', window.location.hostname);
-      window.location.href = '/';
-    },
   },
 
   mounted() {
@@ -185,5 +113,87 @@ const app = new Vue({
         }
       })
       .catch(catchFn);
+  },
+
+  methods: {
+    addUser: function(errAnchor) {
+      axios.post('/add_mapping', this.toAddCreds)
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            window.location.href = `${getCurrentUrlWithoutParams()}?add`;
+          } else {
+            this.errorAddMsg = `Add user error: ${resp.data.status}`;
+            scrollTo(errAnchor);
+          }
+        })
+        .catch(catchFn);
+    },
+
+    exchange: function(errAnchor) {
+      axios.post('/exchange', this.selectedUpdate)
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            this.selectedExchange = resp.data.data;
+            this.errorUpdateMsg = null;
+          } else {
+            this.errorUpdateMsg = `Invalid retrieval: ${resp.data.status}`;
+            this.selectedExchange = null;
+            scrollTo(errAnchor);
+          }
+        })
+        .catch(catchFn);
+    },
+
+    updateUser: function(errAnchor) {
+      const toUpdateUser = {
+        username: this.selectedUpdate.username,
+        password: this.selectedUpdate.password,
+        creds: this.selectedExchange,
+      };
+
+      axios.put('/update_mapping', toUpdateUser)
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            window.location.href = `${getCurrentUrlWithoutParams()}?update`;
+          } else {
+            this.errorUpdateMsg = `Update error: ${resp.data.status}`
+            scrollTo(errAnchor);
+          }
+        })
+        .catch(catchFn);
+    },
+
+    deleteUsers: function(errAnchor) {
+      const confirmDeleteUserGroups = _.filter(this.toDeleteUsers, toDeleteUser => toDeleteUser.delete);
+      const confirmDeleteUsernames = _.map(confirmDeleteUserGroups, confirmDeleteUserGroup => confirmDeleteUserGroup.username);
+
+      // DELETE has a different API from POST
+      axios.delete('/force_delete_mappings', { data: confirmDeleteUsernames, headers: { 'Content-Type': 'application/json' } })
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            window.location.href = `${getCurrentUrlWithoutParams()}?delete`;
+          } else {
+            this.errorDeleteMsg = `Delete user(s) error: ${resp.data.status}`;
+            scrollTo(errAnchor);
+          }
+        })
+        .catch(catchFn);
+    },
+
+    logout: function() {
+      this.$cookies.remove('token', '/', window.location.hostname);
+      window.location.href = '/';
+    },
+
+    // must use function for this data context
+    pwDebounce: _.debounce(function() {
+      if (this.toAddCreds.password && this.confirmPassword) {
+        if (this.toAddCreds.password === this.confirmPassword) {
+          this.errorAddMsg = null;
+        } else {
+          this.errorAddMsg = 'The passwords do not match!';
+        }
+      }
+    }, 500),
   },
 });
