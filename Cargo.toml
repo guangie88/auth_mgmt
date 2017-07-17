@@ -29,3 +29,7 @@ structopt-derive = "=0.0.5"
 [lib]
 name = "auth_mgmt"
 path = "src/auth_mgmt/lib.rs"
+
+[features]
+default = []
+o = []

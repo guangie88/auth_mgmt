@@ -335,8 +335,14 @@ impl<T> From<std::sync::PoisonError<T>> for errors::Error {
 // change between OxxxAdminTaskCredentials and E2AdminTaskCredentials
 pub type User = String;
 pub type Token = String;
+
+#[cfg(feature = "o")]
+pub type AdminTaskCredentials = OxxxAdminTaskCredentials;
+
+#[cfg(not(feature = "o"))]
 pub type AdminTaskCredentials = E2AdminTaskCredentials;
-pub type AllowedRoles = <E2AdminTaskCredentials as WithAllowedRoles>::AllowedRoles;
+
+pub type AllowedRoles = <AdminTaskCredentials as WithAllowedRoles>::AllowedRoles;
 pub type UserMappings = BidirMap<User, Token>;
 pub type TokenMappings = HashMap<Token, AdminTaskCredentials>;
 pub type MAuthMgmt = Mutex<AuthMgmt>;
