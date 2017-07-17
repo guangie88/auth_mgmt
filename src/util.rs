@@ -25,10 +25,16 @@ where T: for<'de_inner> Deserialize<'de_inner> + Serialize {
     pub data: Option<T>,
 }
 
-#[derive(Default, Debug, Clone, FromForm, PartialEq, Deserialize, Serialize)]
+#[derive(new, Default, Debug, Clone, FromForm, PartialEq, Deserialize, Serialize)]
 pub struct Credentials {
     pub username: String,
     pub password: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewPassword {
+    pub new_password: String,
 }
 
 #[derive(new, Debug, Serialize)]

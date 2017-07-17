@@ -56,19 +56,39 @@ use structopt::StructOpt;
 use util::*;
 use errors::ResultExt;
 
-macro_rules! get_cred {
-    ($cookies:expr, $token_mappings:expr) => {{
-        let token = match $cookies.get(TOKEN_NAME) {
+macro_rules! get_token {
+    ($cookies:expr) => {{
+        match $cookies.get(TOKEN_NAME) {
             Some(token) => token,
             None => bail!("No token cookie!"),
-        };
+        }
+    }}
+}
 
-        let creds = match $token_mappings.get(token.value()) {
+macro_rules! get_username_from_token {
+    ($token:expr, $user_mappings:expr) => {{
+        match $user_mappings.get_by_second($token.value()) {
+            Some(username) => username,
+            None => bail!("No valid username from given token!"),
+        }
+    }}
+}
+
+macro_rules! get_payload_creds_from_token {
+    ($token:expr, $token_mappings:expr) => {{
+        let creds = match $token_mappings.get($token.value()) {
             Some(creds) => creds,
             None => bail!("Unable to get credentials payload for token from cookie!"),
         };
 
         creds.clone()
+    }}
+}
+
+macro_rules! get_payload_creds {
+    ($cookies:expr, $token_mappings:expr) => {{
+        let token = get_token!($cookies);
+        get_payload_creds_from_token!(token, $token_mappings)
     }}
 }
 
@@ -120,7 +140,7 @@ fn write_auth_to_file(auth_mgmt: &AuthMgmt, config: &MainConfig) -> errors::Resu
 
 fn add_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> errors::Result<()> {
     let (_, ref token_mappings) = *mappings.lock()?;
-    let admin_task_creds = get_cred!(cookies, token_mappings);
+    let admin_task_creds = get_payload_creds!(cookies, token_mappings);
     let add_users = compress_opt_bool(admin_task_creds.allowed_roles.add_users);
 
     // check for permission
@@ -143,7 +163,7 @@ fn generic_delete_mapping_impl<T, F>(auth_mgmt: &State<MAuthMgmt>, config: &Stat
 
     let (ref mut user_mappings, ref mut token_mappings) = *mappings.lock()?;
 
-    let admin_task_creds = get_cred!(cookies, token_mappings);
+    let admin_task_creds = get_payload_creds!(cookies, token_mappings);
     let delete_users = compress_opt_bool(admin_task_creds.allowed_roles.delete_users);
 
     // check for permission
@@ -187,7 +207,7 @@ fn force_delete_mappings(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>,
 
 fn update_mapping_impl(auth_mgmt: State<MAuthMgmt>, config: State<MainConfig>, mappings: State<MMappings>, cookies: Cookies, user_pw_creds: Json<UserPwCreds>) -> errors::Result<()> {
     let (ref user_mappings, ref mut token_mappings) = *mappings.lock()?;
-    let admin_task_creds = get_cred!(cookies, token_mappings);
+    let admin_task_creds = get_payload_creds!(cookies, token_mappings);
     let update_users = compress_opt_bool(admin_task_creds.allowed_roles.update_users);
 
     // check for permission
@@ -281,9 +301,40 @@ fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: C
     })
 }
 
+fn change_password_impl(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, pw: Json<NewPassword>) -> errors::Result<()> {
+    let new_password = &pw.new_password;
+    let (ref mut user_mappings, ref mut token_mappings) = *mappings.lock()?;
+
+    let (username, admin_task_creds) = {
+        let token = get_token!(cookies);
+        (get_username_from_token!(token, user_mappings).clone(), get_payload_creds_from_token!(token, token_mappings))
+    };
+
+    // delete and re-add using the new password
+    let mut auth_mgmt = auth_mgmt.lock()?;
+    auth_mgmt.force_delete(&username)?;
+    auth_mgmt.add(username.clone(), new_password.clone(), &admin_task_creds)?;
+
+    // update both mappings
+    let new_creds = Credentials::new(username.clone(), new_password.clone());
+    let new_hash_str = generate_hash(&new_creds);
+
+    user_mappings.insert(username, new_hash_str.clone());
+    token_mappings.insert(new_hash_str.clone(), admin_task_creds);
+
+    // and update the cookies
+    cookies.add(Cookie::new(TOKEN_NAME.to_owned(), new_hash_str.clone()));
+    Ok(())
+}
+
+#[post("/change_password", data = "<pw>")]
+fn change_password(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, pw: Json<NewPassword>) -> Json<RespStatus> {
+    into_json_resp_status(change_password_impl(auth_mgmt, mappings, cookies, pw))
+}
+
 fn info_impl(mappings: State<MMappings>, cookies: Cookies) -> errors::Result<AdminTaskCredentials> {
     let (_, ref token_mappings) = *mappings.lock()?;
-    let admin_task_creds = get_cred!(cookies, token_mappings);
+    let admin_task_creds = get_payload_creds!(cookies, token_mappings);
     Ok(admin_task_creds.clone())
 }
 
@@ -318,6 +369,7 @@ fn get_default_creds() -> Json<RespStatusWithData<UserPwCreds>> {
 fn action_to_msg(query: Option<&str>) -> Option<&'static str> {
     query.and_then(|action| {
         match action {
+            "password" => Some("Successfully changed password!"),
             "add" => Some("Successfully added new user!"),
             "update" => Some("Successfully updated user!"),
             "delete" => Some("Successfully deleted user(s)!"),
@@ -471,7 +523,7 @@ fn run() -> errors::Result<()> {
         .attach(Template::fairing())
         .mount("/", routes![
             index, overview, get_images, get_js, get_css,
-            login, get_users, get_default_creds, exchange, info,
+            login, get_users, get_default_creds, exchange, info, change_password,
             add_mapping, delete_mapping, force_delete_mappings, update_mapping, force_update_mapping]).launch();
 
     Ok(())

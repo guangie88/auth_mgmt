@@ -1,3 +1,5 @@
+const DEBOUNCE_MS = 500;
+
 const catchFn = error => alert(JSON.stringify(error, null, 2));
 
 const scrollTo = anchor => {
@@ -65,7 +67,9 @@ const app = new Vue({
   data: {
     // models
     adminTaskCreds: null,
+    confirmNewPassword: null,
     confirmPassword: null,
+    newPassword: null,
     selectedExchange: null,
     selectedUpdate: { username: null, password: null },
     toAddCreds: null,
@@ -75,6 +79,7 @@ const app = new Vue({
 
     // models for error
     errorAddMsg: null,
+    errorChangePasswordMsg: null,
     errorDeleteMsg: null,
     errorUpdateMsg: null,
 
@@ -116,6 +121,19 @@ const app = new Vue({
   },
 
   methods: {
+    changePassword: function(errAnchor) {
+      axios.post('/change_password', { newPassword: this.newPassword })
+        .then(resp => {
+          if (resp.data.status == 'ok') {
+            window.location.href = `${getCurrentUrlWithoutParams()}?password`;
+          } else {
+            this.errorAddMsg = `Change password error: ${resp.data.status}`;
+            scrollTo(errAnchor);
+          }
+        })
+        .catch(catchFn);
+    },
+
     addUser: function(errAnchor) {
       axios.post('/add_mapping', this.toAddCreds)
         .then(resp => {
@@ -185,15 +203,23 @@ const app = new Vue({
       window.location.href = '/';
     },
 
-    // must use function for this data context
-    pwDebounce: _.debounce(function() {
-      if (this.toAddCreds.password && this.confirmPassword) {
-        if (this.toAddCreds.password === this.confirmPassword) {
-          this.errorAddMsg = null;
+    pwDebounce: function(password, confirmPassword, msgKey) {
+      if (password && confirmPassword) {
+        if (password === confirmPassword) {
+          this[msgKey] = null;
         } else {
-          this.errorAddMsg = 'The passwords do not match!';
+          this[msgKey] = 'The passwords do not match!';
         }
       }
-    }, 500),
+    },
+
+    // must use function for this data context
+    changePwDebounce: _.debounce(function() {
+      this.pwDebounce(this.newPassword, this.confirmNewPassword, 'errorChangePasswordMsg');
+    }, DEBOUNCE_MS),
+
+    addPwDebounce: _.debounce(function() {
+      this.pwDebounce(this.toAddCreds.password, this.confirmPassword, 'errorAddMsg');
+    }, DEBOUNCE_MS),
   },
 });

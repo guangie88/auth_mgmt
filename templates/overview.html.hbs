@@ -56,6 +56,9 @@
         <li class="nav-item">
           <a class="nav-link active" href="#info" data-toggle="tab" role="tab">Info</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#changePassword" data-toggle="tab" role="tab">Change Password</a>
+        </li>
         <li class="nav-item" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.addUsers">
           <a class="nav-link" href="#add" data-toggle="tab" role="tab">Add User</a>
         </li>
@@ -73,6 +76,25 @@
           <creds-listing :disabled="true" :creds="adminTaskCreds"></creds-listing>
         </div>
 
+        <div class="tab-pane" id="changePassword" role="tabpanel">
+          <div class="vspacer"></div>
+          <wrong-msg :msg="errorChangePasswordMsg"></wrong-msg>
+
+          <form class="form-horizontal" @submit.prevent="">
+            <div class="form-group">
+              <label for="newPassword">New Password:</label>
+              <input class="form-control" type="password" id="newPassword" v-model="newPassword" @input="changePwDebounce">
+            </div>
+
+            <div class="form-group">
+              <label for="confirmNewPassword">Confirm New Password:</label>
+              <input class="form-control" type="password" id="confirmNewPassword" v-model="confirmNewPassword" @input="changePwDebounce">
+            </div>
+
+            <button :disabled="!newPassword || !confirmNewPassword || newPassword !== confirmNewPassword" class="btn btn-primary btn-block" type="submit" @click="changePassword('errAnchor')">Change Password</button>
+          </form>
+        </div>
+
         <div class="tab-pane" id="add" role="tabpanel" v-if="adminTaskCreds !== null && adminTaskCreds.allowedRoles.addUsers">
           <div v-if="toAddCreds !== null" class="form-horizontal">
             <div class="vspacer"></div>
@@ -86,16 +108,16 @@
 
             <div class="form-group">
               <label for="outerPassword">Password:</label>
-              <input class="form-control" type="password" id="outerPassword" v-model="toAddCreds.password" @input="pwDebounce">
+              <input class="form-control" type="password" id="outerPassword" v-model="toAddCreds.password" @input="addPwDebounce">
             </div>
 
             <div class="form-group">
               <label for="confirmPassword">Confirm Password:</label>
-              <input class="form-control" type="password" id="confirmPassword" v-model="confirmPassword" @input="pwDebounce">
+              <input class="form-control" type="password" id="confirmPassword" v-model="confirmPassword" @input="addPwDebounce">
             </div>
 
             <creds-listing :disabled="false" :creds="toAddCreds.creds"></creds-listing>
-            <button :disabled="!toAddCreds.username || !toAddCreds.password || !confirmPassword || toAddCreds.password != confirmPassword" class="btn btn-primary btn-block vspacer" @click="addUser('errAnchor')">Add user</button>
+            <button :disabled="!toAddCreds.username || !toAddCreds.password || !confirmPassword || toAddCreds.password !== confirmPassword" class="btn btn-primary btn-block vspacer" @click="addUser('errAnchor')">Add user</button>
           </div>
         </div>
 
