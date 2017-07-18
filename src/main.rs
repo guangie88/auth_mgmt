@@ -301,7 +301,7 @@ fn login(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: C
     })
 }
 
-fn change_password_impl(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, mut cookies: Cookies, pw: Json<NewPassword>) -> errors::Result<()> {
+fn change_password_impl(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, config: State<MainConfig>, mut cookies: Cookies, pw: Json<NewPassword>) -> errors::Result<()> {
     let new_password = &pw.new_password;
     let (ref mut user_mappings, ref mut token_mappings) = *mappings.lock()?;
 
@@ -324,12 +324,14 @@ fn change_password_impl(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>,
 
     // and update the cookies
     cookies.add(Cookie::new(TOKEN_NAME.to_owned(), new_hash_str.clone()));
-    Ok(())
+
+    // also need to write into auth file
+    write_auth_to_file(&auth_mgmt, &config)
 }
 
 #[post("/change_password", data = "<pw>")]
-fn change_password(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, cookies: Cookies, pw: Json<NewPassword>) -> Json<RespStatus> {
-    into_json_resp_status(change_password_impl(auth_mgmt, mappings, cookies, pw))
+fn change_password(auth_mgmt: State<MAuthMgmt>, mappings: State<MMappings>, config: State<MainConfig>, cookies: Cookies, pw: Json<NewPassword>) -> Json<RespStatus> {
+    into_json_resp_status(change_password_impl(auth_mgmt, mappings, config, cookies, pw))
 }
 
 fn info_impl(mappings: State<MMappings>, cookies: Cookies) -> errors::Result<AdminTaskCredentials> {
